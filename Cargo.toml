@@ -1,0 +1,9 @@
+[package]
+name = "gfxfilemanager"
+version = "0.1.0"
+authors = ["Lukas Wirth <lukastw97@gmail.com>"]
+#build with "cargo build --target=i686-pc-windows-msvc"
+
+
+[dependencies]
+winapi = "0.2.8"
