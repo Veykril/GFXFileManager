@@ -1,4 +1,4 @@
-use std::os::raw::{c_char, c_int, c_ulonglong};
+use winapi::{c_char, c_int, c_ulonglong};
 use winapi::SYSTEMTIME;
 
 #[repr(C)]

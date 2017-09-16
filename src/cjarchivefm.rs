@@ -15,3 +15,9 @@ pub struct CJArchiveFm {
     p_end: *mut c_char,
     buffer: [c_char; 4096],
 }
+
+impl Drop for CJArchiveFm {
+    fn drop(&mut self) {
+        (self.destructor)(self)
+    }
+}

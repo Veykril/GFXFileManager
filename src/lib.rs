@@ -1,16 +1,17 @@
+#![cfg(all(target_os = "windows", target_arch = "x86"))]
 #![feature(abi_thiscall)]
 extern crate winapi;
 
 use std::ffi::CString;
-use std::os::raw::{c_char, c_int, c_ulong};
 
+use winapi::{c_char, c_int, c_ulong};
 use winapi::{LPDWORD, LPFILETIME, HMODULE, LONG, DWORD, HWND};
 
-mod structures;
-mod gfxinfo;
-mod cjarchivefm;
-mod search_result;
-mod result_entry;
+pub mod structures;
+pub mod gfxinfo;
+pub mod cjarchivefm;
+pub mod search_result;
+pub mod result_entry;
 
 use structures::{UnknownPair, ErrorHandler, DialogData, ForEachCallback};
 use search_result::SearchResult;
@@ -18,7 +19,7 @@ use result_entry::ResultEntry;
 use gfxinfo::GFXInfo;
 use cjarchivefm::CJArchiveFm;
 
-#[allow(improper_ctypes)]
+#[allow(improper_ctypes)]//the compiler complains about this but I dont quite understand why since IFileManager is being represented as a C type so it probably has a problem with the double pointer
 #[link(name = "GFXFileManager")]
 extern "stdcall" {
     fn GFXDllCreateObject(mode: c_int, object: *mut *mut IFileManager, version: c_int) -> c_int;
@@ -32,47 +33,85 @@ pub fn gfxfm_info(info: *mut GFXInfo, index: i32) -> c_int {
     }
 }
 
+pub enum Mode {
+    CP = 1,
+    CW = 2
+}
+
+impl From<i32> for Mode {
+    fn from(mode: i32) -> Self {
+        match mode {
+            1 => Mode::CP,
+            2 => Mode::CW,
+            _ => panic!("Unable to match FileManager mode: {}!", mode),
+        }
+    }
+}
+
+
 pub struct GFXFileManager {
     _file_manager: *mut IFileManager
 }
 
 impl GFXFileManager {
-    pub fn new(mode: i32) -> Self {
-        Self {_file_manager: IFileManager::new_ptr(mode)}
+    pub fn new(mode: Mode) -> Self {
+        Self {_file_manager: IFileManager::new_ptr(mode as i32)}
     }
 
-    pub fn mode(&self) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).mode)(self._file_manager) }
+    /// Returns the container-mode.
+    pub fn mode(&self) -> Mode {
+        Mode::from(
+            unsafe { ((*(*self._file_manager).vtable).mode)(self._file_manager) }
+        )
     }
 
+    /// Sets some configuration
     pub fn config_set(&self, i1: i32, i2: i32) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).config_set)(self._file_manager, i1, i2) }
     }
 
+    /// Gets some configuration
     pub fn config_get(&self, i1: i32, i2: i32) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).config_get)(self._file_manager, i1, i2) }
     }
 
+    /// Create a new container
+    ///
+    /// # Arguments
+    ///
+    /// * `filename` - filename of the container
+    /// * `password` - password for accessing the new container
     pub fn create_container(&self, filename: *const c_char, password: *const c_char) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).create_container)(self._file_manager, filename, password) }
     }
 
+
+    /// Open an existing container
+    ///
+    /// # Arguments
+    ///
+    /// * `filename` - filename of the container
+    /// * `password` - password required for accessing the container
+    /// * `mode` - unknown, maybe for read and write access
     pub fn open_container(&self, filename: *const c_char, password: *const c_char, mode: i32) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).open_container)(self._file_manager, filename, password, mode) }
     }
 
+    /// Close the current container
     pub fn close_container(&self) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).close_container)(self._file_manager) }
     }
 
-    pub fn is_open(&self) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).is_open)(self._file_manager) }
+    /// Returns true if a container is currently open
+    pub fn is_open(&self) -> bool {
+        unsafe { ((*(*self._file_manager).vtable).is_open)(self._file_manager) != 0 }
     }
 
     pub fn close_all_files(&self) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).close_all_files)(self._file_manager) }
     }
 
+    /// Returns the MainModule-handle
     pub fn main_module_handle(&self) -> HMODULE {
         unsafe { ((*(*self._file_manager).vtable).main_module_handle)(self._file_manager) }
     }
@@ -81,10 +120,25 @@ impl GFXFileManager {
         unsafe { ((*(*self._file_manager).vtable).function_9)(self._file_manager, i1) }
     }
 
+    /// Open a file inside the container using a path and returns the file handle or -1
+    ///
+    /// # Arguments
+    ///
+    /// * `filename` - filename, relative to current dir or absolute path inside archive
+    /// * `access` - 0 for open-existing, 0x80000000 for open and share_read, 0x40000000 for create_always
+    /// * `unknown` - not used for original CPFileManager
     pub fn open_file(&self, filename: *const c_char, access: i32, unknown: i32) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).open_file)(self._file_manager, filename, access, unknown) }
     }
 
+    /// Open a file inside the container using the CJArchiveFm-class and returns the file handle or -1
+    ///
+    /// # Arguments
+    ///
+    /// * `fm` - A valid pointer to the CJArchiveFm-class
+    /// * `filename` - filename, relative to current dir or absolute path inside archive
+    /// * `access` - 0 for open-existing, 0x80000000 for open and share_read, 0x40000000 for create_always
+    /// * `unknown` - not used for original CPFileManager
     pub fn open_file_cj(&self, fm: *mut CJArchiveFm, filename: *const c_char, access: i32, unknown: i32) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).open_file_cj)(self._file_manager, fm, filename, access, unknown) }
     }
@@ -105,20 +159,36 @@ impl GFXFileManager {
         unsafe { ((*(*self._file_manager).vtable).create_file_cj)(self._file_manager, fm, filename, unknown) }
     }
 
+    /// Delete a file by name
     pub fn delete_file(&self, filename: *const c_char) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).delete_file)(self._file_manager, filename) }
     }
 
+    /// Close file by handle
     pub fn close_file(&self, h_file: i32) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).close_file)(self._file_manager, h_file) }
     }
 
+    /// Read a number of bytes from file
+    /// # Arguments
+    /// Parameter:
+    /// * `h_file` - Any handle or pointer identifiying this file
+    /// * `lp_buffer` - pointer to reserved memory for read operation
+    /// * `bytes_to_read` - size of lp_buffer
+    /// * `bytes_read` - pointer to memory, will contain the number of bytes read from the file
     pub fn read(&self, h_file: i32, lp_buffer: *mut c_char, bytes_to_read: i32, bytes_read: *mut u32) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).read)(self._file_manager, h_file, lp_buffer, bytes_to_read, bytes_read) }
     }
 
-    pub fn write(&self, h_file: i32, lp_buffer: *const c_char, bytes_to_read: i32, bytes_read: *mut u32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).write)(self._file_manager, h_file, lp_buffer, bytes_to_read, bytes_read) }
+    /// Write a number of bytes to file
+    /// # Arguments
+    /// Parameter:
+    /// * `h_file` - Any handle or pointer identifiying this file
+    /// * `lp_buffer` - pointer to reserved memory for write operation
+    /// * `bytes_to_write` - size of lp_buffer
+    /// * `bytes_written` - pointer to memory, will contain the number of bytes written the file
+    pub fn write(&self, h_file: i32, lp_buffer: *const c_char, bytes_to_write: i32, bytes_written: *mut u32) -> i32 {
+        unsafe { ((*(*self._file_manager).vtable).write)(self._file_manager, h_file, lp_buffer, bytes_to_write, bytes_written) }
     }
 
     pub fn cmd_line_path(&self) -> CString {
@@ -167,7 +237,13 @@ impl GFXFileManager {
 
     pub fn change_directory(&self, name: *const c_char) -> i32 {
         unsafe {
-            ((*(*self._file_manager).vtable).create_dir)(self._file_manager, name)
+            ((*(*self._file_manager).vtable).change_dir)(self._file_manager, name)
+        }
+    }
+
+    pub fn get_directory_name(&self, buffersize: usize, dest: *mut c_char) -> i32 {
+        unsafe {
+            ((*(*self._file_manager).vtable).get_dir_name)(self._file_manager, buffersize, dest)
         }
     }
 
@@ -326,8 +402,6 @@ impl GFXFileManager {
             ((*(*self._file_manager).vtable).lock)(self._file_manager, i1)
         }
     }
-
-
 }
 
 
@@ -390,16 +464,7 @@ struct VTable {
     unlock: extern "thiscall" fn(*mut IFileManager) -> c_int
 }
 
-#[allow(dead_code)]
-impl VTable {
-    fn get_func(&self, index: isize) -> usize {
-        unsafe {
-            ::std::ptr::read((self as *const _ as *const usize).offset(index))
-        }
-    }
-}
 #[repr(C)]
-#[derive(Debug)]
 struct IFileManager {
     vtable: *const VTable,
 }
@@ -409,13 +474,6 @@ impl IFileManager {
         let mut obj = ::std::ptr::null_mut();
         unsafe { GFXDllCreateObject(mode, &mut obj, 0x1007); }
         obj
-    }
-
-    #[allow(dead_code)]
-    fn get_func(&self, index: isize) -> usize {
-        unsafe {
-            (*self.vtable).get_func(index)
-        }
     }
 }
 
