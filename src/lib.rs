@@ -19,6 +19,8 @@ use result_entry::ResultEntry;
 use gfxinfo::GFXInfo;
 use cjarchivefm::CJArchiveFm;
 
+static ERROR_CSTRING_CREATE: &'static str = "Couldn't create CString";
+
 #[allow(improper_ctypes)]//the compiler complains about this but I dont quite understand why since IFileManager is being represented as a C type so it probably has a problem with the double pointer
 #[link(name = "GFXFileManager")]
 extern "stdcall" {
@@ -81,8 +83,10 @@ impl GFXFileManager {
     ///
     /// * `filename` - filename of the container
     /// * `password` - password for accessing the new container
-    pub fn create_container(&self, filename: *const c_char, password: *const c_char) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).create_container)(self._file_manager, filename, password) }
+    pub fn create_container(&self, filename: &str, password: &str) -> i32 {
+        let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
+        let password = CString::new(password).expect(ERROR_CSTRING_CREATE);
+        unsafe { ((*(*self._file_manager).vtable).create_container)(self._file_manager, filename.as_ptr(), password.as_ptr()) }
     }
 
 
@@ -93,8 +97,10 @@ impl GFXFileManager {
     /// * `filename` - filename of the container
     /// * `password` - password required for accessing the container
     /// * `mode` - unknown, maybe for read and write access
-    pub fn open_container(&self, filename: *const c_char, password: *const c_char, mode: i32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).open_container)(self._file_manager, filename, password, mode) }
+    pub fn open_container(&self, filename: &str, password: &str, mode: i32) -> i32 {
+        let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
+        let password = CString::new(password).expect(ERROR_CSTRING_CREATE);
+        unsafe { ((*(*self._file_manager).vtable).open_container)(self._file_manager, filename.as_ptr(), password.as_ptr(), mode) }
     }
 
     /// Close the current container
@@ -127,8 +133,9 @@ impl GFXFileManager {
     /// * `filename` - filename, relative to current dir or absolute path inside archive
     /// * `access` - 0 for open-existing, 0x80000000 for open and share_read, 0x40000000 for create_always
     /// * `unknown` - not used for original CPFileManager
-    pub fn open_file(&self, filename: *const c_char, access: i32, unknown: i32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).open_file)(self._file_manager, filename, access, unknown) }
+    pub fn open_file(&self, filename: &str, access: i32, unknown: i32) -> i32 {
+        let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
+        unsafe { ((*(*self._file_manager).vtable).open_file)(self._file_manager, filename.as_ptr(), access, unknown) }
     }
 
     /// Open a file inside the container using the CJArchiveFm-class and returns the file handle or -1
@@ -139,8 +146,9 @@ impl GFXFileManager {
     /// * `filename` - filename, relative to current dir or absolute path inside archive
     /// * `access` - 0 for open-existing, 0x80000000 for open and share_read, 0x40000000 for create_always
     /// * `unknown` - not used for original CPFileManager
-    pub fn open_file_cj(&self, fm: *mut CJArchiveFm, filename: *const c_char, access: i32, unknown: i32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).open_file_cj)(self._file_manager, fm, filename, access, unknown) }
+    pub fn open_file_cj(&self, fm: &mut CJArchiveFm, filename: &str, access: i32, unknown: i32) -> i32 {
+        let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
+        unsafe { ((*(*self._file_manager).vtable).open_file_cj)(self._file_manager, fm, filename.as_ptr(), access, unknown) }
     }
 
     pub fn function_12(&self) -> i32 {
@@ -151,17 +159,20 @@ impl GFXFileManager {
         unsafe { ((*(*self._file_manager).vtable).function_13)(self._file_manager) }
     }
 
-    pub fn create_file(&self, filename: *const c_char, unknown: i32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).create_file)(self._file_manager, filename, unknown) }
+    pub fn create_file(&self, filename: &str, unknown: i32) -> i32 {
+        let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
+        unsafe { ((*(*self._file_manager).vtable).create_file)(self._file_manager, filename.as_ptr(), unknown) }
     }
 
-    pub fn create_file_cj(&self, fm: *mut CJArchiveFm, filename: *const c_char, unknown: i32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).create_file_cj)(self._file_manager, fm, filename, unknown) }
+    pub fn create_file_cj(&self, fm: *mut CJArchiveFm, filename: &str, unknown: i32) -> i32 {
+        let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
+        unsafe { ((*(*self._file_manager).vtable).create_file_cj)(self._file_manager, fm, filename.as_ptr(), unknown) }
     }
 
     /// Delete a file by name
-    pub fn delete_file(&self, filename: *const c_char) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).delete_file)(self._file_manager, filename) }
+    pub fn delete_file(&self, filename: &str) -> i32 {
+        let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
+        unsafe { ((*(*self._file_manager).vtable).delete_file)(self._file_manager, filename.as_ptr()) }
     }
 
     /// Close file by handle
@@ -217,15 +228,17 @@ impl GFXFileManager {
         }
     }
 
-    pub fn create_directory(&self, name: *const c_char) -> i32 {
+    pub fn create_directory(&self, name: &str) -> i32 {
+        let name = CString::new(name).expect(ERROR_CSTRING_CREATE);
         unsafe {
-            ((*(*self._file_manager).vtable).create_dir)(self._file_manager, name)
+            ((*(*self._file_manager).vtable).create_dir)(self._file_manager, name.as_ptr())
         }
     }
 
-    pub fn delete_directory(&self, name: *const c_char) -> i32 {
+    pub fn delete_directory(&self, name: &str) -> i32 {
+        let name = CString::new(name).expect(ERROR_CSTRING_CREATE);
         unsafe {
-            ((*(*self._file_manager).vtable).delete_dir)(self._file_manager, name)
+            ((*(*self._file_manager).vtable).delete_dir)(self._file_manager, name.as_ptr())
         }
     }
 
@@ -235,15 +248,21 @@ impl GFXFileManager {
         }
     }
 
-    pub fn change_directory(&self, name: *const c_char) -> i32 {
+    pub fn change_directory(&self, name: &str) -> i32 {
+        let name = CString::new(name).expect(ERROR_CSTRING_CREATE);
         unsafe {
-            ((*(*self._file_manager).vtable).change_dir)(self._file_manager, name)
+            ((*(*self._file_manager).vtable).change_dir)(self._file_manager, name.as_ptr())
         }
     }
 
-    pub fn get_directory_name(&self, buffersize: usize, dest: *mut c_char) -> i32 {
+    pub fn get_directory_name(&self) -> Result<String, std::string::FromUtf8Error> {
+        let mut buf = vec![0u8;200];
+        let ptr = buf.as_mut_ptr();
         unsafe {
-            ((*(*self._file_manager).vtable).get_dir_name)(self._file_manager, buffersize, dest)
+            let len = ((*(*self._file_manager).vtable).get_dir_name)(self._file_manager, 200, ptr as *mut i8);
+            //let string = CStr::from_ptr(ptr).to_string();
+            buf.truncate(len as usize);
+            String::from_utf8(buf)
         }
     }
 
@@ -325,37 +344,50 @@ impl GFXFileManager {
         }
     }
 
-    pub fn import_directory(&self, srcdir: *const c_char, dstdir: *const c_char, dir_name: *const c_char, create_target_dir: bool) -> i32 {
+    pub fn import_directory(&self, srcdir: &str, dstdir: &str, dir_name: &str, create_target_dir: bool) -> i32 {
+        let srcdir = CString::new(srcdir).expect(ERROR_CSTRING_CREATE);
+        let dstdir = CString::new(dstdir).expect(ERROR_CSTRING_CREATE);
+        let dir_name = CString::new(dir_name).expect(ERROR_CSTRING_CREATE);
         unsafe {
-            ((*(*self._file_manager).vtable).import_dir)(self._file_manager, srcdir, dstdir, dir_name, create_target_dir)
+            ((*(*self._file_manager).vtable).import_dir)(self._file_manager, srcdir.as_ptr(), dstdir.as_ptr(), dir_name.as_ptr(), create_target_dir)
         }
     }
 
-    pub fn import_file(&self, srcdir: *const c_char, dstdir: *const c_char, file_name: *const c_char, create_target_dir: bool) -> i32 {
+    pub fn import_file(&self, srcdir: &str, dstdir: &str, filename: &str, create_target_dir: bool) -> i32 {
+        let srcdir = CString::new(srcdir).expect(ERROR_CSTRING_CREATE);
+        let dstdir = CString::new(dstdir).expect(ERROR_CSTRING_CREATE);
+        let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
         unsafe {
-            ((*(*self._file_manager).vtable).import_file)(self._file_manager, srcdir, dstdir, file_name, create_target_dir)
+            ((*(*self._file_manager).vtable).import_file)(self._file_manager, srcdir.as_ptr(), dstdir.as_ptr(), filename.as_ptr(), create_target_dir)
         }
     }
 
-    pub fn export_directory(&self, srcdir: *const c_char, dstdir: *const c_char, dir_name: *const c_char, create_target_dir: bool) -> i32 {
+    pub fn export_directory(&self, srcdir: &str, dstdir: &str, dir_name: &str, create_target_dir: bool) -> i32 {
+        let srcdir = CString::new(srcdir).expect(ERROR_CSTRING_CREATE);
+        let dstdir = CString::new(dstdir).expect(ERROR_CSTRING_CREATE);
+        let dir_name = CString::new(dir_name).expect(ERROR_CSTRING_CREATE);
         unsafe {
-            ((*(*self._file_manager).vtable).export_dir)(self._file_manager, srcdir, dstdir, dir_name, create_target_dir)
+            ((*(*self._file_manager).vtable).export_dir)(self._file_manager, srcdir.as_ptr(), dstdir.as_ptr(), dir_name.as_ptr(), create_target_dir)
         }
     }
 
-    pub fn export_file(&self, srcdir: *const c_char, dstdir: *const c_char, file_name: *const c_char, create_target_dir: bool) -> i32 {
+    pub fn export_file(&self, srcdir: &str, dstdir: &str, filename: &str, create_target_dir: bool) -> i32 {
+        let srcdir = CString::new(srcdir).expect(ERROR_CSTRING_CREATE);
+        let dstdir = CString::new(dstdir).expect(ERROR_CSTRING_CREATE);
+        let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
         unsafe {
-            ((*(*self._file_manager).vtable).export_file)(self._file_manager, srcdir, dstdir, file_name, create_target_dir)
+            ((*(*self._file_manager).vtable).export_file)(self._file_manager, srcdir.as_ptr(), dstdir.as_ptr(), filename.as_ptr(), create_target_dir)
         }
     }
 
-    pub fn file_exists(&self, name: *mut c_char, flags: i32) -> i32 {
+    pub fn file_exists(&self, name: &str, flags: i32) -> i32 {
+        let name = CString::new(name).unwrap();
         unsafe {
-            ((*(*self._file_manager).vtable).file_exists)(self._file_manager, name, flags)
+            ((*(*self._file_manager).vtable).file_exists)(self._file_manager, name.as_ptr(), flags)
         }
     }
 
-    pub fn show_dialog(&self, data: *mut DialogData) -> i32 {
+    pub fn show_dialog(&self, data: &mut DialogData) -> i32 {
         unsafe {
             ((*(*self._file_manager).vtable).show_dialog)(self._file_manager, data)
         }
@@ -417,12 +449,12 @@ struct VTable {
     close_all_files: extern "thiscall" fn(*mut IFileManager) -> c_int,
     main_module_handle: extern "thiscall" fn(*mut IFileManager) -> HMODULE,
     function_9: extern "thiscall" fn(*mut IFileManager, c_int) -> c_int,
-    open_file: extern "thiscall" fn(*mut IFileManager, *const c_char, c_int, c_int) -> c_int,
     open_file_cj: extern "thiscall" fn(*mut IFileManager, *mut CJArchiveFm, *const c_char, c_int, c_int) -> c_int,
+    open_file: extern "thiscall" fn(*mut IFileManager, *const c_char, c_int, c_int) -> c_int,
     function_12: extern "thiscall" fn(*mut IFileManager) -> c_int,
     function_13: extern "thiscall" fn(*mut IFileManager) -> c_int,
-    create_file: extern "thiscall" fn(*mut IFileManager, *const c_char, c_int) -> c_int,
     create_file_cj: extern "thiscall" fn(*mut IFileManager, *mut CJArchiveFm, *const c_char, c_int) -> c_int,
+    create_file: extern "thiscall" fn(*mut IFileManager, *const c_char, c_int) -> c_int,
     delete_file: extern "thiscall" fn(*mut IFileManager, *const c_char,) -> c_int,
     close_file: extern "thiscall" fn(*mut IFileManager, c_int) -> c_int,
     read: extern "thiscall" fn(*mut IFileManager, c_int, *mut c_char, c_int, *mut c_ulong) -> c_int,
