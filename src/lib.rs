@@ -1,5 +1,6 @@
 #![cfg(all(target_os = "windows", target_arch = "x86"))]
 #![feature(abi_thiscall)]
+#![feature(read_initializer)]
 extern crate winapi;
 
 use std::ffi::CString;
@@ -195,7 +196,7 @@ impl GFXFileManager {
     /// * `lp_buffer` - pointer to reserved memory for read operation
     /// * `bytes_to_read` - size of lp_buffer
     /// * `bytes_read` - pointer to memory, will contain the number of bytes read from the file
-    pub fn read(&self, h_file: &File, lp_buffer: &mut [u8], bytes_to_read: i32, bytes_read: *mut u32) -> i32 {
+    fn read(&self, h_file: &File, lp_buffer: &mut [u8], bytes_to_read: i32, bytes_read: *mut u32) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).read)(self._file_manager, h_file.handle, lp_buffer.as_mut_ptr() as *mut i8, bytes_to_read, bytes_read) }
     }
 
