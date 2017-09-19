@@ -1,8 +1,6 @@
 use std::os::raw::{c_char, c_int, c_uchar};
 use winapi::HANDLE;
 
-
-
 #[repr(C)]
 #[allow(non_snake_case)]
 pub struct SearchResult {

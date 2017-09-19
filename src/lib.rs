@@ -4,7 +4,9 @@ extern crate winapi;
 
 use std::ffi::CString;
 
-use winapi::{c_char, c_int, c_ulong};
+use std::os::raw::c_int;
+use std::os::raw::c_char;
+use std::os::raw::c_ulong;
 use winapi::{LPDWORD, LPFILETIME, HMODULE, LONG, DWORD, HWND};
 
 pub mod structures;
@@ -12,7 +14,9 @@ pub mod gfxinfo;
 pub mod cjarchivefm;
 pub mod search_result;
 pub mod result_entry;
+mod gfxfile;
 
+pub use gfxfile::File;
 use structures::{UnknownPair, ErrorHandler, DialogData, ForEachCallback};
 use search_result::SearchResult;
 use result_entry::ResultEntry;
@@ -50,7 +54,6 @@ impl From<i32> for Mode {
     }
 }
 
-
 pub struct GFXFileManager {
     _file_manager: *mut IFileManager
 }
@@ -58,6 +61,11 @@ pub struct GFXFileManager {
 impl GFXFileManager {
     pub fn new(mode: Mode) -> Self {
         Self {_file_manager: IFileManager::new_ptr(mode as i32)}
+    }
+
+    #[inline]
+    fn file_handle_from(&self, handle: i32) -> File {
+        gfxfile::new(self, handle)
     }
 
     /// Returns the container-mode.
@@ -113,7 +121,9 @@ impl GFXFileManager {
         unsafe { ((*(*self._file_manager).vtable).is_open)(self._file_manager) != 0 }
     }
 
-    pub fn close_all_files(&self) -> i32 {
+    #[allow(dead_code)]
+    /// This function shouldn't be called since all file handles will be closed when they are dropped anyways
+    fn close_all_files(&self) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).close_all_files)(self._file_manager) }
     }
 
@@ -133,9 +143,9 @@ impl GFXFileManager {
     /// * `filename` - filename, relative to current dir or absolute path inside archive
     /// * `access` - 0 for open-existing, 0x80000000 for open and share_read, 0x40000000 for create_always
     /// * `unknown` - not used for original CPFileManager
-    pub fn open_file(&self, filename: &str, access: i32, unknown: i32) -> i32 {
+    pub fn open_file(&self, filename: &str, access: i32, unknown: i32) -> File {
         let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
-        unsafe { ((*(*self._file_manager).vtable).open_file)(self._file_manager, filename.as_ptr(), access, unknown) }
+        unsafe { self.file_handle_from(((*(*self._file_manager).vtable).open_file)(self._file_manager, filename.as_ptr(), access, unknown))}
     }
 
     /// Open a file inside the container using the CJArchiveFm-class and returns the file handle or -1
@@ -146,9 +156,9 @@ impl GFXFileManager {
     /// * `filename` - filename, relative to current dir or absolute path inside archive
     /// * `access` - 0 for open-existing, 0x80000000 for open and share_read, 0x40000000 for create_always
     /// * `unknown` - not used for original CPFileManager
-    pub fn open_file_cj(&self, fm: &mut CJArchiveFm, filename: &str, access: i32, unknown: i32) -> i32 {
+    pub fn open_file_cj(&self, fm: &mut CJArchiveFm, filename: &str, access: i32, unknown: i32) -> File {
         let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
-        unsafe { ((*(*self._file_manager).vtable).open_file_cj)(self._file_manager, fm, filename.as_ptr(), access, unknown) }
+        unsafe { self.file_handle_from(((*(*self._file_manager).vtable).open_file_cj)(self._file_manager, fm, filename.as_ptr(), access, unknown)) }
     }
 
     pub fn function_12(&self) -> i32 {
@@ -175,8 +185,8 @@ impl GFXFileManager {
         unsafe { ((*(*self._file_manager).vtable).delete_file)(self._file_manager, filename.as_ptr()) }
     }
 
-    /// Close file by handle
-    pub fn close_file(&self, h_file: i32) -> i32 {
+    /// Close file by handle, called by File only to manage its lifetime
+    fn close_file(&self, h_file: i32) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).close_file)(self._file_manager, h_file) }
     }
 
@@ -187,8 +197,8 @@ impl GFXFileManager {
     /// * `lp_buffer` - pointer to reserved memory for read operation
     /// * `bytes_to_read` - size of lp_buffer
     /// * `bytes_read` - pointer to memory, will contain the number of bytes read from the file
-    pub fn read(&self, h_file: i32, lp_buffer: *mut c_char, bytes_to_read: i32, bytes_read: *mut u32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).read)(self._file_manager, h_file, lp_buffer, bytes_to_read, bytes_read) }
+    pub fn read(&self, h_file: &File, lp_buffer: &mut [u8], bytes_to_read: i32, bytes_read: *mut u32) -> i32 {
+        unsafe { ((*(*self._file_manager).vtable).read)(self._file_manager, h_file.handle, lp_buffer.as_mut_ptr() as *mut i8, bytes_to_read, bytes_read) }
     }
 
     /// Write a number of bytes to file
@@ -198,8 +208,8 @@ impl GFXFileManager {
     /// * `lp_buffer` - pointer to reserved memory for write operation
     /// * `bytes_to_write` - size of lp_buffer
     /// * `bytes_written` - pointer to memory, will contain the number of bytes written the file
-    pub fn write(&self, h_file: i32, lp_buffer: *const c_char, bytes_to_write: i32, bytes_written: *mut u32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).write)(self._file_manager, h_file, lp_buffer, bytes_to_write, bytes_written) }
+    pub fn write(&self, h_file: &File, lp_buffer: &[u8], bytes_to_write: i32, bytes_written: *mut u32) -> i32 {
+        unsafe { ((*(*self._file_manager).vtable).write)(self._file_manager, h_file.handle, lp_buffer.as_ptr() as *const i8, bytes_to_write, bytes_written) }
     }
 
     pub fn cmd_line_path(&self) -> CString {
@@ -256,11 +266,11 @@ impl GFXFileManager {
     }
 
     pub fn get_directory_name(&self) -> Result<String, std::string::FromUtf8Error> {
-        let mut buf = vec![0u8;200];
-        let ptr = buf.as_mut_ptr();
         unsafe {
+            let mut buf = Vec::with_capacity(200);
+            buf.set_len(200);
+            let ptr = buf.as_mut_ptr();
             let len = ((*(*self._file_manager).vtable).get_dir_name)(self._file_manager, 200, ptr as *mut i8);
-            //let string = CStr::from_ptr(ptr).to_string();
             buf.truncate(len as usize);
             String::from_utf8(buf)
         }
@@ -296,33 +306,33 @@ impl GFXFileManager {
         }
     }
 
-    pub fn file_name_from_handle(&self, h_file: i32, dest: *mut c_char, count: usize) -> i32 {
+    pub fn file_name_from_handle(&self, h_file: &File, dest: *mut c_char, count: usize) -> i32 {
         unsafe {
-            ((*(*self._file_manager).vtable).file_name_from_handle)(self._file_manager, h_file, dest, count)
+            ((*(*self._file_manager).vtable).file_name_from_handle)(self._file_manager, h_file.handle, dest, count)
         }
     }
 
-    pub fn get_file_size(&self, h_file: i32, file_size: LPDWORD) -> i32 {
+    pub fn get_file_size(&self, h_file: &File) -> i32 {
         unsafe {
-            ((*(*self._file_manager).vtable).get_file_size)(self._file_manager, h_file, file_size)
+            ((*(*self._file_manager).vtable).get_file_size)(self._file_manager, h_file.handle, std::ptr::null_mut())
         }
     }
 
-    pub fn get_file_time(&self, h_file: i32, creation_time: LPFILETIME, last_write_time: LPFILETIME) -> bool {
+    pub fn get_file_time(&self, h_file: &File, creation_time: LPFILETIME, last_write_time: LPFILETIME) -> bool {
         unsafe {
-            ((*(*self._file_manager).vtable).get_file_time)(self._file_manager, h_file, creation_time, last_write_time)
+            ((*(*self._file_manager).vtable).get_file_time)(self._file_manager, h_file.handle, creation_time, last_write_time)
         }
     }
 
-    pub fn set_file_time(&self, h_file: i32, creation_time: LPFILETIME, last_write_time: LPFILETIME) -> bool {
+    pub fn set_file_time(&self, h_file: &File, creation_time: LPFILETIME, last_write_time: LPFILETIME) -> bool {
         unsafe {
-            ((*(*self._file_manager).vtable).set_file_time)(self._file_manager, h_file, creation_time, last_write_time)
+            ((*(*self._file_manager).vtable).set_file_time)(self._file_manager, h_file.handle, creation_time, last_write_time)
         }
     }
 
-    pub fn seek(&self, h_file: i32, distance_to_move: LONG, move_method: DWORD) -> i32{
+    pub fn seek(&self, h_file: &File, distance_to_move: LONG, move_method: DWORD) -> i32{
         unsafe {
-            ((*(*self._file_manager).vtable).seek)(self._file_manager, h_file, distance_to_move, move_method)
+            ((*(*self._file_manager).vtable).seek)(self._file_manager, h_file.handle, distance_to_move, move_method)
         }
     }
 
@@ -485,7 +495,7 @@ struct VTable {
     import_file: extern "thiscall" fn(*mut IFileManager, *const c_char, *const c_char, *const c_char, bool) -> c_int,
     export_dir: extern "thiscall" fn(*mut IFileManager, *const c_char, *const c_char, *const c_char, bool) -> c_int,
     export_file: extern "thiscall" fn(*mut IFileManager, *const c_char, *const c_char, *const c_char, bool) -> c_int,
-    file_exists: extern "thiscall" fn(*mut IFileManager, *mut c_char, c_int) -> c_int,
+    file_exists: extern "thiscall" fn(*mut IFileManager, *const c_char, c_int) -> c_int,
     show_dialog: extern "thiscall" fn(*mut IFileManager, *mut DialogData) -> c_int,
     for_each_entry_in_container: extern "thiscall" fn(*mut IFileManager, ForEachCallback, *const c_char, *mut ::std::os::raw::c_void) -> c_int,
     update_current_dir: extern "thiscall" fn(*mut IFileManager) -> c_int,
