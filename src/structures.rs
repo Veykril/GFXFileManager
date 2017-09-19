@@ -1,4 +1,4 @@
-use std::os::raw::{c_char, c_int};
+use winapi::{c_int, c_char};
 use winapi::HWND;
 
 use result_entry::ResultEntry;

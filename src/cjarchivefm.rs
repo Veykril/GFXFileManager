@@ -1,4 +1,4 @@
-use std::os::raw::{c_char, c_int, c_uchar};
+use winapi::{c_int, c_char, c_uchar};
 use IFileManager;
 
 #[repr(C)]

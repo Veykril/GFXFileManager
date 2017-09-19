@@ -4,10 +4,8 @@ extern crate winapi;
 
 use std::ffi::CString;
 
-use std::os::raw::c_int;
-use std::os::raw::c_char;
-use std::os::raw::c_ulong;
-use winapi::{LPDWORD, LPFILETIME, HMODULE, LONG, DWORD, HWND};
+use winapi::{c_int, c_char, c_ulong, c_long};
+use winapi::{DWORD, HMODULE, HWND, LPDWORD, LPFILETIME};
 
 pub mod structures;
 pub mod gfxinfo;
@@ -136,7 +134,7 @@ impl GFXFileManager {
         unsafe { ((*(*self._file_manager).vtable).function_9)(self._file_manager, i1) }
     }
 
-    /// Open a file inside the container using a path and returns the file handle or -1
+    /// Open a file inside the container using a path and returns a File object
     ///
     /// # Arguments
     ///
@@ -148,7 +146,7 @@ impl GFXFileManager {
         unsafe { self.file_handle_from(((*(*self._file_manager).vtable).open_file)(self._file_manager, filename.as_ptr(), access, unknown))}
     }
 
-    /// Open a file inside the container using the CJArchiveFm-class and returns the file handle or -1
+    /// Open a file inside the container using the CJArchiveFm-class and returns a File object
     ///
     /// # Arguments
     ///
@@ -330,7 +328,7 @@ impl GFXFileManager {
         }
     }
 
-    pub fn seek(&self, h_file: &File, distance_to_move: LONG, move_method: DWORD) -> i32{
+    pub fn seek(&self, h_file: &File, distance_to_move: c_long, move_method: DWORD) -> i32{
         unsafe {
             ((*(*self._file_manager).vtable).seek)(self._file_manager, h_file.handle, distance_to_move, move_method)
         }
@@ -487,7 +485,7 @@ struct VTable {
     get_file_size: extern "thiscall" fn(*mut IFileManager, c_int, LPDWORD) -> c_int,
     get_file_time: extern "thiscall" fn(*mut IFileManager, c_int, LPFILETIME, LPFILETIME) -> bool,
     set_file_time: extern "thiscall" fn(*mut IFileManager, c_int, LPFILETIME, LPFILETIME) -> bool,
-    seek: extern "thiscall" fn(*mut IFileManager, c_int, LONG, DWORD) -> c_int,
+    seek: extern "thiscall" fn(*mut IFileManager, c_int, c_long, DWORD) -> c_int,
     get_hwnd: extern "thiscall" fn(*mut IFileManager) -> HWND,
     set_hwnd: extern "thiscall" fn(*mut IFileManager, HWND) -> c_int,
     register_error_handler: extern "thiscall" fn(*mut IFileManager, ErrorHandler) -> c_int,

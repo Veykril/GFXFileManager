@@ -1,5 +1,5 @@
 use GFXFileManager;
-use std::os::raw::c_int;
+use winapi::c_int;
 
 
 pub struct File<'a> {

@@ -1,5 +1,7 @@
-use std::os::raw::{c_char, c_int, c_uchar};
+use winapi::{c_int, c_char, c_uchar};
 use winapi::HANDLE;
+
+//todo wrapper class that automagically calls find_close() on drop
 
 #[repr(C)]
 #[allow(non_snake_case)]
