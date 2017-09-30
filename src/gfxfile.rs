@@ -1,7 +1,7 @@
 use GFXFileManager;
 use winapi::c_int;
 
-use std::io::{Read, Result, Initializer};
+use std::io::{Read, Result, Initializer, Write};
 
 pub struct File<'a> {
     pub handle: c_int,
@@ -26,6 +26,20 @@ impl<'a> Read for File<'a> {
     #[inline]
     unsafe fn initializer(&self) -> Initializer {
         Initializer::nop()
+    }
+}
+
+impl<'a> Write for File<'a> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        let len = buf.len();
+        let mut bytes_written = 0;
+        self.file_manager.write(self, buf, len as i32, &mut bytes_written);
+        Ok(bytes_written as usize)
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        println!("You cannot flush this file");
+        Ok(())
     }
 }
 

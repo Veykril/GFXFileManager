@@ -168,14 +168,14 @@ impl GFXFileManager {
         unsafe { ((*(*self._file_manager).vtable).function_13)(self._file_manager) }
     }
 
-    pub fn create_file(&self, filename: &str, unknown: i32) -> i32 {
+    pub fn create_file(&self, filename: &str, unknown: i32) -> File {
         let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
-        unsafe { ((*(*self._file_manager).vtable).create_file)(self._file_manager, filename.as_ptr(), unknown) }
+        unsafe { self.file_handle_from(((*(*self._file_manager).vtable).create_file)(self._file_manager, filename.as_ptr(), unknown)) }
     }
 
-    pub fn create_file_cj(&self, fm: *mut CJArchiveFm, filename: &str, unknown: i32) -> i32 {
+    pub fn create_file_cj(&self, fm: *mut CJArchiveFm, filename: &str, unknown: i32) -> File {
         let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
-        unsafe { ((*(*self._file_manager).vtable).create_file_cj)(self._file_manager, fm, filename.as_ptr(), unknown) }
+        unsafe {  self.file_handle_from(((*(*self._file_manager).vtable).create_file_cj)(self._file_manager, fm, filename.as_ptr(), unknown)) }
     }
 
     /// Delete a file by name
@@ -207,7 +207,7 @@ impl GFXFileManager {
     /// * `lp_buffer` - pointer to reserved memory for write operation
     /// * `bytes_to_write` - size of lp_buffer
     /// * `bytes_written` - pointer to memory, will contain the number of bytes written the file
-    pub fn write(&self, h_file: &File, lp_buffer: &[u8], bytes_to_write: i32, bytes_written: *mut u32) -> i32 {
+    fn write(&self, h_file: &File, lp_buffer: &[u8], bytes_to_write: i32, bytes_written: *mut u32) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).write)(self._file_manager, h_file.handle, lp_buffer.as_ptr() as *const i8, bytes_to_write, bytes_written) }
     }
 
