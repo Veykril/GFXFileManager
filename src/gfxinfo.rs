@@ -1,6 +1,8 @@
 use winapi::{c_char, c_int, c_ulonglong};
 use winapi::SYSTEMTIME;
 
+use ffi::GFXFMInfo;
+
 #[repr(C)]
 pub struct GFXInfo {
     in_use: c_char,
@@ -14,4 +16,14 @@ pub struct GFXInfo {
     timestamp: SYSTEMTIME,
     pid: c_int,
     field_3: c_int,
+}
+
+impl GFXInfo {
+    pub fn new(index: c_int) -> Self {
+        unsafe {
+            let mut object = ::std::mem::uninitialized();
+            GFXFMInfo(&mut object, index);
+            object
+        }
+    }
 }

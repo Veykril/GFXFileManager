@@ -1,8 +1,9 @@
-use winapi::{c_int, c_char, c_uchar};
-use IFileManager;
+use winapi::{c_char, c_uchar, c_int};
+
+use file_manager::IFileManager;
 
 #[repr(C)]
-pub struct CJArchiveFm {
+pub struct CJArchiveFm {//this structure needs testing as well as the functions that use it
     destructor: extern "thiscall" fn(*mut CJArchiveFm),
     p_filemanager: *mut IFileManager,
     h_file: c_int,

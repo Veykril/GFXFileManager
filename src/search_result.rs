@@ -1,12 +1,10 @@
-use winapi::{c_int, c_char, c_uchar};
+use winapi::{c_char, c_uchar, c_int};
 use winapi::HANDLE;
-
-//todo wrapper class that automagically calls find_close() on drop
 
 #[repr(C)]
 #[allow(non_snake_case)]
 pub struct SearchResult {
-    pub success: c_uchar,
+    success: c_uchar,
     pub field_4: c_int,
     pub field_8: c_int,
     pub field_C: c_int,
@@ -25,4 +23,10 @@ pub struct SearchResult {
     pub gap40: [c_char; 840],
     pub hFind: HANDLE,
     pub field_38C: c_int
+}
+
+impl SearchResult {
+    pub fn success(&self) -> bool {
+        self.success != 0
+    }
 }
