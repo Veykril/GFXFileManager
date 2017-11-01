@@ -35,9 +35,9 @@ pub struct ResultEntry {
 }
 
 impl ResultEntry {
-    pub fn filename(&self) -> &str {
+    pub fn filename(&self) -> ::std::result::Result<&str, ::std::str::Utf8Error> {
         let cstring = unsafe { CStr::from_ptr(self.filename.as_ptr()) };
-        cstring.to_str().unwrap()
+        cstring.to_str()
     }
 
     pub fn filename_as_ptr(&self) -> *const c_char {
