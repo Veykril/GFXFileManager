@@ -1,12 +1,12 @@
 use std::io::{Initializer, Read, Result, Seek, SeekFrom, Write};
 
 use winapi::c_int;
-use winapi::FILETIME;
+use winapi::{FILETIME, LPFILETIME};
 
 use file_manager::GFXFileManager;
 
 pub struct File<'a> {
-    pub(crate) handle: c_int,
+    handle: c_int,
     file_manager: &'a GFXFileManager,
 }
 
@@ -18,11 +18,17 @@ impl<'a> File<'a> {
         }
     }
 
-    pub fn file_size(&self) -> i32 {
-        self.file_manager.get_file_size(self)
+    #[inline(always)]
+    pub(crate) fn handle(&self) -> c_int {
+        self.handle
     }
 
-    pub fn get_file_time(&self) -> (FILETIME, FILETIME) {
+    pub fn len(&self) -> u64 {
+        self.file_manager.get_file_size(self) as u64
+    }
+
+    /// Returns the creation and last write time of this file
+    pub fn file_time(&self) -> (FILETIME, FILETIME) {
         unsafe {
             let mut creation_time = ::std::mem::uninitialized();
             let mut last_write_time = ::std::mem::uninitialized();
@@ -31,7 +37,7 @@ impl<'a> File<'a> {
         }
     }
 
-    pub fn set_file_size(&self, creation_time: &mut FILETIME, last_write_time: &mut FILETIME) {
+    pub fn set_file_time(&self, creation_time: LPFILETIME, last_write_time: LPFILETIME) {
         self.file_manager.set_file_time(self, creation_time, last_write_time);
     }
 }
@@ -58,6 +64,7 @@ impl<'a> Write for File<'a> {
         Ok(bytes_written as usize)
     }
 
+    /// Flushing a file is not possible as far as I know
     fn flush(&mut self) -> Result<()> {
         Ok(())
     }
@@ -65,19 +72,18 @@ impl<'a> Write for File<'a> {
 
 impl<'a> Seek for File<'a> {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        let mut move_method = 0;
-        let distance_to_move = match pos {
-            SeekFrom::Start(u) => {
-                u as i32
-            },
-            SeekFrom::Current(i) => {
-                move_method = 1;
-                i as i32
-            },
-            SeekFrom::End(i) => {
-                move_method = 2;
-                i as i32
-            },
+        let (move_method, distance_to_move) = {
+            match pos {
+                SeekFrom::Start(u) => {
+                    (0, u as i32)
+                },
+                SeekFrom::Current(i) => {
+                    (1, i as i32)
+                },
+                SeekFrom::End(i) => {
+                    (2, i as i32)
+                },
+            }
         };
         Ok(self.file_manager.seek(self, distance_to_move, move_method) as u64)
     }

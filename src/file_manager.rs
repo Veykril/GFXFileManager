@@ -14,6 +14,7 @@ use dialog::DialogData;
 use gfxfile::File;
 use result_entry::ResultEntry;
 use search_result::SearchResult;
+use search_result::GFXSearchResult;
 
 const OBJECT_VERSION: c_int = 0x1007;
 static ERROR_CSTRING_CREATE: &'static str = "Couldn't create CString";
@@ -22,7 +23,7 @@ macro_rules! cstring {
     ($str: expr) => { CString::new($str).expect(ERROR_CSTRING_CREATE) };
 }
 
-pub type ForEachCallback = extern "thiscall" fn(CallbackState, ResultEntry, *mut ::std::os::raw::c_void) -> bool;
+pub type ForEachCallback = extern "thiscall" fn(CallbackState, ResultEntry, *mut ::std::os::raw::c_void) -> ();
 pub type ErrorHandler = extern "thiscall" fn(HWND, *const c_char, *const c_char) -> bool;
 
 pub enum CallbackState {
@@ -75,9 +76,7 @@ pub struct GFXFileManager {
 
 impl GFXFileManager {
     pub fn new(mode: Mode) -> Self {
-        Self {
-            _file_manager: IFileManager::new_ptr(mode as i32, OBJECT_VERSION)
-        }
+        Self::new_with_version(mode, OBJECT_VERSION)
     }
 
     pub fn new_with_version(mode: Mode, version: c_int) -> Self {
@@ -103,33 +102,32 @@ impl GFXFileManager {
         unsafe { ((*(*self._file_manager).vtable).config_get)(self._file_manager, i1, i2) }
     }
 
-    /// Create a new container
+    /// Creates a new container and opens it
     ///
     /// # Arguments
     ///
-    /// * `filename` - filename of the container
-    /// * `password` - password for accessing the new container
+    /// * filename - Filename of the container
+    /// * password - Password for accessing the new container
     pub fn create_container(&self, filename: &str, password: &str) -> bool {
         let filename = cstring!(filename);
         let password = cstring!(password);
         unsafe { ((*(*self._file_manager).vtable).create_container)(self._file_manager, filename.as_ptr(), password.as_ptr()) != 0 }
     }
 
-
-    /// Open an existing container
+    /// Opens an existing container
     ///
     /// # Arguments
     ///
-    /// * `filename` - filename of the container
-    /// * `password` - password required for accessing the container
-    /// * `mode` - unknown, maybe for read and write access
+    /// * filename - Filename of the container
+    /// * password - Password required for accessing the container
+    /// * mode - unknown, maybe for read and write access
     pub fn open_container(&self, filename: &str, password: &str, mode: i32) -> bool {
         let filename = cstring!(filename);
         let password = cstring!(password);
         unsafe { ((*(*self._file_manager).vtable).open_container)(self._file_manager, filename.as_ptr(), password.as_ptr(), mode) != 0 }
     }
 
-    /// Close the current container
+    /// Closes the current container
     pub fn close_container(&self) -> bool {
         unsafe { ((*(*self._file_manager).vtable).close_container)(self._file_manager) != 0 }
     }
@@ -139,7 +137,8 @@ impl GFXFileManager {
         unsafe { ((*(*self._file_manager).vtable).is_open)(self._file_manager) != 0 }
     }
 
-    /// This function shouldn't be called since all file handles will be closed when they are dropped anyways
+    /// This function shouldn't be called since all file handles will be closed when they are
+    /// dropped given the implementation of the filehandle wrapper
     fn close_all_files(&self) -> i32 {
         unsafe { ((*(*self._file_manager).vtable).close_all_files)(self._file_manager) }
     }
@@ -153,26 +152,24 @@ impl GFXFileManager {
         unsafe { ((*(*self._file_manager).vtable).function_9)(self._file_manager, i1) }
     }
 
-    /// Open a file inside the container using a path and returns a File object
+    /// Opens a file inside the container using a path and returns a File object
     ///
     /// # Arguments
     ///
-    /// * `filename` - filename, relative to current dir or absolute path inside archive
-    /// * `access` - 0 for open-existing, 0x80000000 for open and share_read, 0x40000000 for create_always
-    /// * `unknown` - not used for original CPFileManager
+    /// * filename - Filename, relative to current dir or absolute path inside archive
+    /// * unknown - Not used for original CPFileManager
     pub fn open_file(&self, filename: &str, access: Access, unknown: i32) -> File {
         let filename = cstring!(filename);
         File::new(self, unsafe { ((*(*self._file_manager).vtable).open_file)(self._file_manager, filename.as_ptr(), access as i32, unknown)})
     }
 
-    /// Open a file inside the container using the CJArchiveFm-class and returns a File object
+    /// Opens a file inside the container using the CJArchiveFm-class and returns a File object
     ///
     /// # Arguments
     ///
-    /// * `fm` - A valid pointer to the CJArchiveFm-class
-    /// * `filename` - filename, relative to current dir or absolute path inside archive
-    /// * `access` - 0 for open-existing, 0x80000000 for open and share_read, 0x40000000 for create_always
-    /// * `unknown` - not used for original CPFileManager
+    /// * fm - A mutable reference to a CJArchiveFm
+    /// * filename - Filename, relative to current dir or absolute path inside archive
+    /// * unknown - not used for original CPFileManager
     pub fn open_file_cj(&self, fm: &mut CJArchiveFm, filename: &str, access: Access, unknown: i32) -> File {
         let filename = cstring!(filename);
         File::new(self, unsafe { ((*(*self._file_manager).vtable).open_file_cj)(self._file_manager, fm, filename.as_ptr(), access as i32, unknown) })
@@ -186,61 +183,49 @@ impl GFXFileManager {
         unsafe { ((*(*self._file_manager).vtable).function_13)(self._file_manager) }
     }
 
-    /// Create a file inside the container and returns a File object
+    /// Creates a file inside the container and returns a File object
     ///
     /// # Arguments
     ///
-    /// * `filename` - filename, relative to current dir or absolute path inside archive
-    /// * `unknown`
+    /// * filename - Filename, relative to current dir or absolute path inside archive
+    /// * unknown
     pub fn create_file(&self, filename: &str, unknown: i32) -> File {
         let filename = cstring!(filename);
         File::new(self, unsafe { ((*(*self._file_manager).vtable).create_file)(self._file_manager, filename.as_ptr(), unknown) })
     }
 
 
-    /// Create a file inside the container using the CJArchiveFm-class and returns a File object
+    /// Creates a file inside the container using the CJArchiveFm-class and returns a File object
     ///
     /// # Arguments
     ///
-    /// * `fm` - A valid pointer to the CJArchiveFm-class
-    /// * `filename` - filename, relative to current dir or absolute path inside archive
-    /// * `unknown`
+    /// * fm - A mutable reference to a CJArchiveFm
+    /// * filename - Filename, relative to current dir or absolute path inside archive
+    /// * unknown
     pub fn create_file_cj(&self, fm: &mut CJArchiveFm, filename: &str, unknown: i32) -> File {
         let filename = cstring!(filename);
         File::new(self, unsafe { ((*(*self._file_manager).vtable).create_file_cj)(self._file_manager, fm, filename.as_ptr(), unknown) })
     }
 
-    /// Delete a file by name
+    /// Deletes a file by name
     pub fn delete_file(&self, filename: &str) -> i32 {
         let filename = cstring!(filename);
         unsafe { ((*(*self._file_manager).vtable).delete_file)(self._file_manager, filename.as_ptr()) }
     }
 
-    /// Close file by handle, called by File only to manage its lifetime
+    /// Closes file by handle, not public because our handle wrapper manages its lifetime itself
     pub(crate) fn close_file(&self, file: &File) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).close_file)(self._file_manager, file.handle) }
+        unsafe { ((*(*self._file_manager).vtable).close_file)(self._file_manager, file.handle()) }
     }
 
-    /// Read a number of bytes from file
-    /// # Arguments
-    /// Parameter:
-    /// * `h_file` - Any handle or pointer identifiying this file
-    /// * `lp_buffer` - pointer to reserved memory for read operation
-    /// * `bytes_to_read` - size of lp_buffer
-    /// * `bytes_read` - pointer to memory, will contain the number of bytes read from the file
+    /// Reads a number of bytes from a file
     pub(crate) fn read(&self, file: &File, lp_buffer: &mut [u8], bytes_to_read: i32, bytes_read: *mut u32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).read)(self._file_manager, file.handle, lp_buffer.as_mut_ptr() as *mut i8, bytes_to_read, bytes_read) }
+        unsafe { ((*(*self._file_manager).vtable).read)(self._file_manager, file.handle(), lp_buffer.as_mut_ptr() as *mut i8, bytes_to_read, bytes_read) }
     }
 
-    /// Write a number of bytes to file
-    /// # Arguments
-    /// Parameter:
-    /// * `h_file` - Any handle or pointer identifiying this file
-    /// * `lp_buffer` - pointer to reserved memory for write operation
-    /// * `bytes_to_write` - size of lp_buffer
-    /// * `bytes_written` - pointer to memory, will contain the number of bytes written the file
+    /// Writes a number of bytes to file
     pub(crate) fn write(&self, file: &File, lp_buffer: &[u8], bytes_to_write: i32, bytes_written: *mut u32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).write)(self._file_manager, file.handle, lp_buffer.as_ptr() as *const i8, bytes_to_write, bytes_written) }
+        unsafe { ((*(*self._file_manager).vtable).write)(self._file_manager, file.handle(), lp_buffer.as_ptr() as *const i8, bytes_to_write, bytes_written) }
     }
 
     pub fn cmd_line_path<'a>(&self) -> &'a CStr {
@@ -300,6 +285,7 @@ impl GFXFileManager {
         }
     }
 
+    /// Returns the current directory's name or an utf8 error
     pub fn get_directory_name(&self) -> Result<String, FromUtf8Error> {
         unsafe {
             let mut buf = Vec::with_capacity(255);
@@ -330,20 +316,20 @@ impl GFXFileManager {
         }
     }
 
-    pub fn find_first_file(&self, search: &mut SearchResult, pattern: &str, entry: &mut ResultEntry) -> *mut SearchResult {
+    pub fn find_first_file(&self, search: &mut SearchResult, pattern: &str, entry: &mut ResultEntry) {
         let pattern = cstring!(pattern);
         unsafe {
-            ((*(*self._file_manager).vtable).find_first_file)(self._file_manager, search, pattern.as_ptr(), entry)
+            ((*(*self._file_manager).vtable).find_first_file)(self._file_manager, search.inner_mut(), pattern.as_ptr(), entry);
         }
     }
 
     pub fn find_next_file(&self, search: &mut SearchResult, entry: &mut ResultEntry) -> i32 {
         unsafe {
-            ((*(*self._file_manager).vtable).find_next_file)(self._file_manager, search, entry)
+            ((*(*self._file_manager).vtable).find_next_file)(self._file_manager, search.inner_mut(), entry)
         }
     }
 
-    pub fn find_close(&self, search: &mut SearchResult) -> i32 {
+    pub(crate) fn find_close(&self, search: &mut GFXSearchResult) -> i32 {
         unsafe {
             ((*(*self._file_manager).vtable).close_search_result)(self._file_manager, search)
         }
@@ -354,7 +340,7 @@ impl GFXFileManager {
         unsafe {
             let mut buf = Vec::with_capacity(255);
             buf.set_len(255);
-            ((*(*self._file_manager).vtable).file_name_from_handle)(self._file_manager, file.handle, buf.as_mut_ptr() as *mut i8, count);
+            ((*(*self._file_manager).vtable).file_name_from_handle)(self._file_manager, file.handle(), buf.as_mut_ptr() as *mut i8, count);
             if let Some(null_pos) = buf.iter().position(|&x| x == 0) {
                 buf.truncate(null_pos);
             }
@@ -364,25 +350,25 @@ impl GFXFileManager {
 
     pub(crate) fn get_file_size(&self, file: &File) -> i32 {
         unsafe {
-            ((*(*self._file_manager).vtable).get_file_size)(self._file_manager, file.handle, null_mut())
+            ((*(*self._file_manager).vtable).get_file_size)(self._file_manager, file.handle(), null_mut())
         }
     }
 
     pub(crate) fn get_file_time(&self, file: &File, creation_time: LPFILETIME, last_write_time: LPFILETIME) -> bool {
         unsafe {
-            ((*(*self._file_manager).vtable).get_file_time)(self._file_manager, file.handle, creation_time, last_write_time)
+            ((*(*self._file_manager).vtable).get_file_time)(self._file_manager, file.handle(), creation_time, last_write_time)
         }
     }
 
     pub(crate) fn set_file_time(&self, file: &File, creation_time: LPFILETIME, last_write_time: LPFILETIME) -> bool {
         unsafe {
-            ((*(*self._file_manager).vtable).set_file_time)(self._file_manager, file.handle, creation_time, last_write_time)
+            ((*(*self._file_manager).vtable).set_file_time)(self._file_manager, file.handle(), creation_time, last_write_time)
         }
     }
 
     pub(crate) fn seek(&self, file: &File, distance_to_move: c_long, move_method: DWORD) -> i32{
         unsafe {
-            ((*(*self._file_manager).vtable).seek)(self._file_manager, file.handle, distance_to_move, move_method)
+            ((*(*self._file_manager).vtable).seek)(self._file_manager, file.handle(), distance_to_move, move_method)
         }
     }
 
@@ -539,9 +525,9 @@ struct VTable {
     get_dir_name: extern "thiscall" fn(*mut IFileManager, usize, *mut c_char) -> c_int,
     set_virtual_path: extern "thiscall" fn(*mut IFileManager, *const c_char) -> c_int,
     get_virtual_path: extern "thiscall" fn(*mut IFileManager, *mut c_char) -> c_int,
-    find_first_file: extern "thiscall" fn(*mut IFileManager, *mut SearchResult, *const c_char, *mut ResultEntry) -> *mut SearchResult,
-    find_next_file: extern "thiscall" fn(*mut IFileManager, *mut SearchResult, *mut ResultEntry) -> c_int,
-    close_search_result: extern "thiscall" fn(*mut IFileManager, *mut SearchResult) -> c_int,
+    find_first_file: extern "thiscall" fn(*mut IFileManager, *mut GFXSearchResult, *const c_char, *mut ResultEntry) -> *mut GFXSearchResult,
+    find_next_file: extern "thiscall" fn(*mut IFileManager, *mut GFXSearchResult, *mut ResultEntry) -> c_int,
+    close_search_result: extern "thiscall" fn(*mut IFileManager, *mut GFXSearchResult) -> c_int,
     file_name_from_handle: extern "thiscall" fn(*mut IFileManager, c_int, *mut c_char, usize) -> c_int,
     get_file_size: extern "thiscall" fn(*mut IFileManager, c_int, LPDWORD) -> c_int,
     get_file_time: extern "thiscall" fn(*mut IFileManager, c_int, LPFILETIME, LPFILETIME) -> bool,
