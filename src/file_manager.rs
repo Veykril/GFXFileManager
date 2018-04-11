@@ -74,6 +74,12 @@ pub struct GFXFileManager {
     _file_manager: *mut IFileManager
 }
 
+macro_rules! vtable_call {
+    ($_self:ident, $name:ident$(, $arg:expr)*) => {
+        unsafe { ((*(*$_self._file_manager).vtable).$name)($_self._file_manager, $($arg),*) }
+    };
+}
+
 impl GFXFileManager {
     pub fn new(mode: Mode) -> Self {
         Self::new_with_version(mode, OBJECT_VERSION)
@@ -88,18 +94,18 @@ impl GFXFileManager {
     /// Returns the container-mode.
     pub fn mode(&self) -> Mode {
         Mode::from(
-            unsafe { ((*(*self._file_manager).vtable).mode)(self._file_manager) }
+            vtable_call!(self, mode)
         )
     }
 
     /// Sets some configuration
     pub fn config_set(&self, i1: i32, i2: i32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).config_set)(self._file_manager, i1, i2) }
+        vtable_call!(self, config_set, i1, i2)
     }
 
     /// Gets some configuration, most likely just crashes the application atm
     pub fn config_get(&self, i1: i32, i2: i32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).config_get)(self._file_manager, i1, i2) }
+        vtable_call!(self, config_get, i1, i2)
     }
 
     /// Creates a new container and opens it
@@ -111,7 +117,7 @@ impl GFXFileManager {
     pub fn create_container(&self, filename: &str, password: &str) -> bool {
         let filename = cstring!(filename);
         let password = cstring!(password);
-        unsafe { ((*(*self._file_manager).vtable).create_container)(self._file_manager, filename.as_ptr(), password.as_ptr()) != 0 }
+        vtable_call!(self, create_container, filename.as_ptr(), password.as_ptr()) != 0
     }
 
     /// Opens an existing container
@@ -124,32 +130,32 @@ impl GFXFileManager {
     pub fn open_container(&self, filename: &str, password: &str, mode: i32) -> bool {
         let filename = cstring!(filename);
         let password = cstring!(password);
-        unsafe { ((*(*self._file_manager).vtable).open_container)(self._file_manager, filename.as_ptr(), password.as_ptr(), mode) != 0 }
+        vtable_call!(self, open_container, filename.as_ptr(), password.as_ptr(), mode) != 0
     }
 
     /// Closes the current container
     pub fn close_container(&self) -> bool {
-        unsafe { ((*(*self._file_manager).vtable).close_container)(self._file_manager) != 0 }
+        vtable_call!(self, close_container) != 0
     }
 
     /// Returns true if a container is currently open
     pub fn is_open(&self) -> bool {
-        unsafe { ((*(*self._file_manager).vtable).is_open)(self._file_manager) != 0 }
+        vtable_call!(self, is_open) != 0
     }
 
     /// This function shouldn't be called since all file handles will be closed when they are
     /// dropped given the implementation of the filehandle wrapper
     fn close_all_files(&self) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).close_all_files)(self._file_manager) }
+        vtable_call!(self, close_all_files)
     }
 
     /// Returns the MainModule-handle
     pub fn main_module_handle(&self) -> HMODULE {
-        unsafe { ((*(*self._file_manager).vtable).main_module_handle)(self._file_manager) }
+        vtable_call!(self, main_module_handle)
     }
 
     pub fn function_9(&self, i1: i32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).function_9)(self._file_manager, i1) }
+        vtable_call!(self, function_9, i1)
     }
 
     /// Opens a file inside the container using a path and returns a File object
@@ -160,7 +166,7 @@ impl GFXFileManager {
     /// * unknown - Not used for original CPFileManager
     pub fn open_file(&self, filename: &str, access: Access, unknown: i32) -> File {
         let filename = cstring!(filename);
-        File::new(self, unsafe { ((*(*self._file_manager).vtable).open_file)(self._file_manager, filename.as_ptr(), access as i32, unknown)})
+        File::new(self, vtable_call!(self, open_file, filename.as_ptr(), access as i32, unknown))
     }
 
     /// Opens a file inside the container using the CJArchiveFm-class and returns a File object
@@ -172,15 +178,15 @@ impl GFXFileManager {
     /// * unknown - not used for original CPFileManager
     pub fn open_file_cj(&self, fm: &mut CJArchiveFm, filename: &str, access: Access, unknown: i32) -> File {
         let filename = cstring!(filename);
-        File::new(self, unsafe { ((*(*self._file_manager).vtable).open_file_cj)(self._file_manager, fm, filename.as_ptr(), access as i32, unknown) })
+        File::new(self, vtable_call!(self, open_file_cj, fm, filename.as_ptr(), access as i32, unknown))
     }
 
     pub fn function_12(&self) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).function_12)(self._file_manager) }
+        vtable_call!(self, function_12)
     }
 
     pub fn function_13(&self) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).function_13)(self._file_manager) }
+        vtable_call!(self, function_13)
     }
 
     /// Creates a file inside the container and returns a File object
@@ -191,7 +197,7 @@ impl GFXFileManager {
     /// * unknown
     pub fn create_file(&self, filename: &str, unknown: i32) -> File {
         let filename = cstring!(filename);
-        File::new(self, unsafe { ((*(*self._file_manager).vtable).create_file)(self._file_manager, filename.as_ptr(), unknown) })
+        File::new(self, vtable_call!(self, create_file, filename.as_ptr(), unknown))
     }
 
 
@@ -204,282 +210,216 @@ impl GFXFileManager {
     /// * unknown
     pub fn create_file_cj(&self, fm: &mut CJArchiveFm, filename: &str, unknown: i32) -> File {
         let filename = cstring!(filename);
-        File::new(self, unsafe { ((*(*self._file_manager).vtable).create_file_cj)(self._file_manager, fm, filename.as_ptr(), unknown) })
+        File::new(self, vtable_call!(self, create_file_cj, fm, filename.as_ptr(), unknown))
     }
 
     /// Deletes a file by name
     pub fn delete_file(&self, filename: &str) -> i32 {
         let filename = cstring!(filename);
-        unsafe { ((*(*self._file_manager).vtable).delete_file)(self._file_manager, filename.as_ptr()) }
+        vtable_call!(self, delete_file, filename.as_ptr())
     }
 
     /// Closes file by handle, not public because our handle wrapper manages its lifetime itself
     pub(crate) fn close_file(&self, file: &File) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).close_file)(self._file_manager, file.handle()) }
+        vtable_call!(self, close_file, file.handle())
     }
 
     /// Reads a number of bytes from a file
     pub(crate) fn read(&self, file: &File, lp_buffer: &mut [u8], bytes_to_read: i32, bytes_read: *mut u32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).read)(self._file_manager, file.handle(), lp_buffer.as_mut_ptr() as *mut i8, bytes_to_read, bytes_read) }
+        vtable_call!(self, read, file.handle(), lp_buffer.as_mut_ptr() as *mut i8, bytes_to_read, bytes_read)
     }
 
     /// Writes a number of bytes to file
     pub(crate) fn write(&self, file: &File, lp_buffer: &[u8], bytes_to_write: i32, bytes_written: *mut u32) -> i32 {
-        unsafe { ((*(*self._file_manager).vtable).write)(self._file_manager, file.handle(), lp_buffer.as_ptr() as *const i8, bytes_to_write, bytes_written) }
+        vtable_call!(self, write, file.handle(), lp_buffer.as_ptr() as *const i8, bytes_to_write, bytes_written)
     }
 
     pub fn cmd_line_path<'a>(&self) -> &'a CStr {
-        unsafe {
-            let charptr: *const c_char = ((*(*self._file_manager).vtable).cmd_line_path)(self._file_manager);
-            CStr::from_ptr(charptr)
-        }
+        let charptr: *const c_char = vtable_call!(self, cmd_line_path);
+        unsafe { CStr::from_ptr(charptr) }
     }
 
     pub fn cmd_line_exe<'a>(&self) -> &'a CStr {
-        unsafe {
-            let charptr: *const c_char = ((*(*self._file_manager).vtable).cmd_line_exe)(self._file_manager);
-            CStr::from_ptr(charptr)
-        }
+        let charptr: *const c_char = vtable_call!(self, cmd_line_exe);
+        unsafe { CStr::from_ptr(charptr) }
     }
 
     pub fn get_unknown(&self, unknown: *mut UnknownPair) -> *mut UnknownPair {
-        unsafe {
-            ((*(*self._file_manager).vtable).get_unknown)(self._file_manager, unknown)
-        }
+        vtable_call!(self, get_unknown, unknown)
     }
 
     pub fn set_unknown(&self, a: i32, b: i32) -> i32 {
-        unsafe {
-            ((*(*self._file_manager).vtable).set_unknown)(self._file_manager, a, b)
-        }
+        vtable_call!(self, set_unknown, a, b)
     }
 
     /// Creates directory in the current pk2
     pub fn create_directory(&self, name: &str) -> bool {
         let name = cstring!(name);
-        unsafe {
-            ((*(*self._file_manager).vtable).create_dir)(self._file_manager, name.as_ptr()) != 0
-        }
+        vtable_call!(self, create_dir, name.as_ptr()) != 0
     }
 
     /// Deletes directory in the current pk2
     pub fn delete_directory(&self, name: &str) -> bool {
         let name = cstring!(name);
-        unsafe {
-            ((*(*self._file_manager).vtable).delete_dir)(self._file_manager, name.as_ptr()) != 0
-        }
+        vtable_call!(self, delete_dir, name.as_ptr()) != 0
     }
 
     /// Resets the current working directory in the current pk2
     pub fn reset_directory(&self) -> bool {
-        unsafe {
-            ((*(*self._file_manager).vtable).reset_dir)(self._file_manager) != 0
-        }
+        vtable_call!(self, reset_dir) != 0
     }
 
     /// Changes the current working directory
     pub fn change_directory(&self, name: &str) -> bool {
         let name = cstring!(name);
-        unsafe {
-            ((*(*self._file_manager).vtable).change_dir)(self._file_manager, name.as_ptr()) != 0
-        }
+        vtable_call!(self, change_dir, name.as_ptr()) != 0
     }
 
     /// Returns the current directory's name or an utf8 error
     pub fn get_directory_name(&self) -> Result<String, FromUtf8Error> {
-        unsafe {
-            let mut buf = Vec::with_capacity(255);
-            buf.set_len(255);
-            let ptr = buf.as_mut_ptr();
-            let len = ((*(*self._file_manager).vtable).get_dir_name)(self._file_manager, 200, ptr as *mut i8);
-            buf.truncate(len as usize);
-            String::from_utf8(buf)
-        }
+        let mut buf = Vec::with_capacity(255);
+        unsafe { buf.set_len(255) };
+        let ptr = buf.as_mut_ptr();
+        let len = vtable_call!(self, get_dir_name, 200, ptr as *mut i8);
+        buf.truncate(len as usize);
+        String::from_utf8(buf)
     }
 
     pub fn set_virtual_path(&self, path: &str) -> bool {
         let path = cstring!(path);
-        unsafe {
-            ((*(*self._file_manager).vtable).set_virtual_path)(self._file_manager, path.as_ptr()) != 0
-        }
+        vtable_call!(self, set_virtual_path, path.as_ptr()) != 0
     }
 
     pub fn get_virtual_path(&self) -> Result<String, FromUtf8Error> {
-        unsafe {
-            let mut buf = Vec::with_capacity(255);
-            buf.set_len(255);
-            ((*(*self._file_manager).vtable).get_virtual_path)(self._file_manager, buf.as_mut_ptr() as *mut i8);
-            if let Some(null_pos) = buf.iter().position(|&x| x == 0) {
-                buf.truncate(null_pos);
-            }
-            String::from_utf8(buf)
+        let mut buf = Vec::with_capacity(255);
+        unsafe { buf.set_len(255) };
+        vtable_call!(self, get_virtual_path, buf.as_mut_ptr() as *mut i8);
+        if let Some(null_pos) = buf.iter().position(|&x| x == 0) {
+            buf.truncate(null_pos);
         }
+        String::from_utf8(buf)
     }
 
     pub fn find_first_file(&self, search: &mut SearchResult, pattern: &str, entry: &mut ResultEntry) {
         let pattern = cstring!(pattern);
-        unsafe {
-            ((*(*self._file_manager).vtable).find_first_file)(self._file_manager, search.inner_mut(), pattern.as_ptr(), entry);
-        }
+        vtable_call!(self, find_first_file, search.inner_mut(), pattern.as_ptr(), entry);
     }
 
     pub fn find_next_file(&self, search: &mut SearchResult, entry: &mut ResultEntry) -> i32 {
-        unsafe {
-            ((*(*self._file_manager).vtable).find_next_file)(self._file_manager, search.inner_mut(), entry)
-        }
+        vtable_call!(self, find_next_file, search.inner_mut(), entry)
     }
 
     pub(crate) fn find_close(&self, search: &mut GFXSearchResult) -> i32 {
-        unsafe {
-            ((*(*self._file_manager).vtable).close_search_result)(self._file_manager, search)
-        }
+        vtable_call!(self, close_search_result, search)
     }
 
     #[allow(dead_code)]
     pub(crate) fn file_name_from_handle(&self, file: &File, count: usize) -> Result<String, FromUtf8Error> {
-        unsafe {
-            let mut buf = Vec::with_capacity(255);
-            buf.set_len(255);
-            ((*(*self._file_manager).vtable).file_name_from_handle)(self._file_manager, file.handle(), buf.as_mut_ptr() as *mut i8, count);
-            if let Some(null_pos) = buf.iter().position(|&x| x == 0) {
-                buf.truncate(null_pos);
-            }
-            String::from_utf8(buf)
+        let mut buf = Vec::with_capacity(255);
+        unsafe { buf.set_len(255) };
+        vtable_call!(self, file_name_from_handle, file.handle(), buf.as_mut_ptr() as *mut i8, count);
+        if let Some(null_pos) = buf.iter().position(|&x| x == 0) {
+            buf.truncate(null_pos);
         }
+        String::from_utf8(buf)
     }
 
     pub(crate) fn get_file_size(&self, file: &File) -> i32 {
-        unsafe {
-            ((*(*self._file_manager).vtable).get_file_size)(self._file_manager, file.handle(), null_mut())
-        }
+        vtable_call!(self, get_file_size, file.handle(), null_mut())
     }
 
     pub(crate) fn get_file_time(&self, file: &File, creation_time: LPFILETIME, last_write_time: LPFILETIME) -> bool {
-        unsafe {
-            ((*(*self._file_manager).vtable).get_file_time)(self._file_manager, file.handle(), creation_time, last_write_time)
-        }
+        vtable_call!(self, get_file_time, file.handle(), creation_time, last_write_time)
     }
 
     pub(crate) fn set_file_time(&self, file: &File, creation_time: LPFILETIME, last_write_time: LPFILETIME) -> bool {
-        unsafe {
-            ((*(*self._file_manager).vtable).set_file_time)(self._file_manager, file.handle(), creation_time, last_write_time)
-        }
+        vtable_call!(self, set_file_time, file.handle(), creation_time, last_write_time)
     }
 
     pub(crate) fn seek(&self, file: &File, distance_to_move: c_long, move_method: DWORD) -> i32{
-        unsafe {
-            ((*(*self._file_manager).vtable).seek)(self._file_manager, file.handle(), distance_to_move, move_method)
-        }
+        vtable_call!(self, seek, file.handle(), distance_to_move, move_method)
     }
 
     pub fn get_hwnd(&self) -> HWND {
-        unsafe {
-            ((*(*self._file_manager).vtable).get_hwnd)(self._file_manager)
-        }
+        vtable_call!(self, get_hwnd)
     }
 
     pub fn set_hwnd(&self, hwnd: HWND) -> i32 {
-        unsafe {
-            ((*(*self._file_manager).vtable).set_hwnd)(self._file_manager, hwnd)
-        }
+        vtable_call!(self, set_hwnd, hwnd)
     }
 
     pub fn register_error_handler(&self, callback: ErrorHandler) -> i32 {
-        unsafe {
-            ((*(*self._file_manager).vtable).register_error_handler)(self._file_manager, callback)
-        }
+        vtable_call!(self, register_error_handler, callback)
     }
 
     pub fn import_directory(&self, srcdir: &str, dstdir: &str, dir_name: &str, create_target_dir: bool) -> i32 {
-        let srcdir = CString::new(srcdir).expect(ERROR_CSTRING_CREATE);
-        let dstdir = CString::new(dstdir).expect(ERROR_CSTRING_CREATE);
-        let dir_name = CString::new(dir_name).expect(ERROR_CSTRING_CREATE);
+        let srcdir = cstring!(srcdir);
+        let dstdir = cstring!(dstdir);
+        let dir_name = cstring!(dir_name);
         unsafe {
-            ((*(*self._file_manager).vtable).import_dir)(self._file_manager, srcdir.as_ptr(), dstdir.as_ptr(), dir_name.as_ptr(), create_target_dir)
+            vtable_call!(self, import_dir, srcdir.as_ptr(), dstdir.as_ptr(), dir_name.as_ptr(), create_target_dir)
         }
     }
 
     pub fn import_file(&self, srcdir: &str, dstdir: &str, filename: &str, create_target_dir: bool) -> i32 {
-        let srcdir = CString::new(srcdir).expect(ERROR_CSTRING_CREATE);
-        let dstdir = CString::new(dstdir).expect(ERROR_CSTRING_CREATE);
-        let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
+        let srcdir = cstring!(srcdir);
+        let dstdir = cstring!(dstdir);
+        let filename = cstring!(filename);
         unsafe {
-            ((*(*self._file_manager).vtable).import_file)(self._file_manager, srcdir.as_ptr(), dstdir.as_ptr(), filename.as_ptr(), create_target_dir)
+            vtable_call!(self, import_file, srcdir.as_ptr(), dstdir.as_ptr(), filename.as_ptr(), create_target_dir)
         }
     }
 
     pub fn export_directory(&self, srcdir: &str, dstdir: &str, dir_name: &str, create_target_dir: bool) -> i32 {
-        let srcdir = CString::new(srcdir).expect(ERROR_CSTRING_CREATE);
-        let dstdir = CString::new(dstdir).expect(ERROR_CSTRING_CREATE);
-        let dir_name = CString::new(dir_name).expect(ERROR_CSTRING_CREATE);
-        unsafe {
-            ((*(*self._file_manager).vtable).export_dir)(self._file_manager, srcdir.as_ptr(), dstdir.as_ptr(), dir_name.as_ptr(), create_target_dir)
-        }
+        let srcdir = cstring!(srcdir);
+        let dstdir = cstring!(dstdir);
+        let dir_name = cstring!(dir_name);
+        vtable_call!(self, export_dir, srcdir.as_ptr(), dstdir.as_ptr(), dir_name.as_ptr(), create_target_dir)
     }
 
     pub fn export_file(&self, srcdir: &str, dstdir: &str, filename: &str, create_target_dir: bool) -> i32 {
-        let srcdir = CString::new(srcdir).expect(ERROR_CSTRING_CREATE);
-        let dstdir = CString::new(dstdir).expect(ERROR_CSTRING_CREATE);
-        let filename = CString::new(filename).expect(ERROR_CSTRING_CREATE);
-        unsafe {
-            ((*(*self._file_manager).vtable).export_file)(self._file_manager, srcdir.as_ptr(), dstdir.as_ptr(), filename.as_ptr(), create_target_dir)
-        }
+        let srcdir = cstring!(srcdir);
+        let dstdir = cstring!(dstdir);
+        let filename = cstring!(filename);
+        vtable_call!(self, export_file, srcdir.as_ptr(), dstdir.as_ptr(), filename.as_ptr(), create_target_dir)
     }
 
     pub fn file_exists(&self, name: &str, flags: i32) -> i32 {
-        let name = CString::new(name).unwrap();
-        unsafe {
-            ((*(*self._file_manager).vtable).file_exists)(self._file_manager, name.as_ptr(), flags)
-        }
+        let name = cstring!(name);
+        vtable_call!(self, file_exists, name.as_ptr(), flags)
     }
 
     pub fn show_dialog(&self, data: &mut DialogData) -> i32 {
-        unsafe {
-            ((*(*self._file_manager).vtable).show_dialog)(self._file_manager, data)
-        }
+        vtable_call!(self, show_dialog, data)
     }
 
     pub fn for_each_entry_in_container(&self, callback: ForEachCallback, filter: &str, userstate: *mut ::std::os::raw::c_void) -> i32 {
         let filter = cstring!(filter);
-        unsafe {
-            ((*(*self._file_manager).vtable).for_each_entry_in_container)(self._file_manager, callback, filter.as_ptr(), userstate)
-        }
+        vtable_call!(self, for_each_entry_in_container, callback, filter.as_ptr(), userstate)
     }
 
     pub fn update_current_directory(&self) -> i32 {
-        unsafe {
-            ((*(*self._file_manager).vtable).update_current_dir)(self._file_manager)
-        }
+        vtable_call!(self, update_current_dir)
     }
 
     pub fn function_50(&self, i1: i32) -> i32 {
-        unsafe {
-            ((*(*self._file_manager).vtable).function_50)(self._file_manager, i1)
-        }
+        vtable_call!(self, function_50, i1)
     }
 
     pub fn get_version(&self) -> i32 {
-        unsafe {
-            ((*(*self._file_manager).vtable).get_version)(self._file_manager)
-        }
+        vtable_call!(self, get_version)
     }
 
     pub fn check_version(&self, version: i32) -> i32 {
-        unsafe {
-            ((*(*self._file_manager).vtable).check_version)(self._file_manager, version)
-        }
+        vtable_call!(self, check_version, version)
     }
 
     pub fn unlock(&self) -> bool {
-        unsafe {
-            ((*(*self._file_manager).vtable).unlock)(self._file_manager) != 0
-        }
+        vtable_call!(self, unlock) != 0
     }
 
     pub fn lock(&self, i1: i32) -> bool {
-        unsafe {
-            ((*(*self._file_manager).vtable).lock)(self._file_manager, i1) != 0
-        }
+        vtable_call!(self, lock, i1) != 0
     }
 }
 
