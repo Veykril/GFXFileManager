@@ -39,16 +39,16 @@ pub struct UnknownPair(c_int, c_int);
 #[allow(overflowing_literals)]
 pub enum Access {
     OpenExisting = 0,
-    ShareRead = 0x80000000,
-    CreateAlways = 0x40000000,
+    ShareRead = 0x8000_0000,
+    CreateAlways = 0x4000_0000,
 }
 
 impl From<u32> for Access {
     fn from(mode: u32) -> Self {
         match mode {
             0 => Access::OpenExisting,
-            0x80000000 => Access::ShareRead,
-            0x40000000 => Access::CreateAlways,
+            0x8000_0000 => Access::ShareRead,
+            0x4000_0000 => Access::CreateAlways,
             _ => panic!("Unable to match Access mode: {}!", mode),
         }
     }
@@ -356,18 +356,14 @@ impl GFXFileManager {
         let srcdir = cstring!(srcdir);
         let dstdir = cstring!(dstdir);
         let dir_name = cstring!(dir_name);
-        unsafe {
-            vtable_call!(self, import_dir, srcdir.as_ptr(), dstdir.as_ptr(), dir_name.as_ptr(), create_target_dir)
-        }
+        vtable_call!(self, import_dir, srcdir.as_ptr(), dstdir.as_ptr(), dir_name.as_ptr(), create_target_dir)
     }
 
     pub fn import_file(&self, srcdir: &str, dstdir: &str, filename: &str, create_target_dir: bool) -> i32 {
         let srcdir = cstring!(srcdir);
         let dstdir = cstring!(dstdir);
         let filename = cstring!(filename);
-        unsafe {
-            vtable_call!(self, import_file, srcdir.as_ptr(), dstdir.as_ptr(), filename.as_ptr(), create_target_dir)
-        }
+        vtable_call!(self, import_file, srcdir.as_ptr(), dstdir.as_ptr(), filename.as_ptr(), create_target_dir)
     }
 
     pub fn export_directory(&self, srcdir: &str, dstdir: &str, dir_name: &str, create_target_dir: bool) -> i32 {

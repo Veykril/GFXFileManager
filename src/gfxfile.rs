@@ -27,6 +27,10 @@ impl<'a> File<'a> {
         self.file_manager.get_file_size(self) as u64
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Returns the creation and last write time of this file
     pub fn file_time(&self) -> (FILETIME, FILETIME) {
         unsafe {
