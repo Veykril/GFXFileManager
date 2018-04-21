@@ -44,6 +44,10 @@ impl<'a> File<'a> {
     pub fn set_file_time(&self, creation_time: LPFILETIME, last_write_time: LPFILETIME) {
         self.file_manager.set_file_time(self, creation_time, last_write_time);
     }
+
+    pub fn name(&self) -> String {
+        self.file_manager.file_name_from_handle(self).unwrap()
+    }
 }
 
 impl<'a> Read for File<'a> {

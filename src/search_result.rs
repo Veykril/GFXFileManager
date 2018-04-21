@@ -1,12 +1,12 @@
 use winapi::{c_char, c_uchar, c_int};
 use winapi::HANDLE;
+
 use file_manager::GFXFileManager;
 
 pub struct SearchResult<'a> {
     inner: GFXSearchResult,
     file_manager: &'a GFXFileManager,
 }
-
 
 impl<'a> SearchResult<'a> {
     pub(crate) fn inner_mut(&mut self) -> &mut GFXSearchResult {

@@ -65,7 +65,7 @@ impl From<i32> for Mode {
         match mode {
             1 => Mode::CP,
             2 => Mode::CW,
-            _ => panic!("Unable to match FileManager mode: {}!", mode),
+            _ => panic!("Container mode was not 1 nor 2!"),
         }
     }
 }
@@ -313,11 +313,10 @@ impl GFXFileManager {
         vtable_call!(self, close_search_result, search)
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn file_name_from_handle(&self, file: &File, count: usize) -> Result<String, FromUtf8Error> {
-        let mut buf = Vec::with_capacity(255);
-        unsafe { buf.set_len(255) };
-        vtable_call!(self, file_name_from_handle, file.handle(), buf.as_mut_ptr() as *mut i8, count);
+    pub(crate) fn file_name_from_handle(&self, file: &File) -> Result<String, FromUtf8Error> {
+        let mut buf = Vec::with_capacity(512);
+        unsafe { buf.set_len(512) };
+        vtable_call!(self, file_name_from_handle, file.handle(), buf.as_mut_ptr() as *mut i8, buf.len());
         if let Some(null_pos) = buf.iter().position(|&x| x == 0) {
             buf.truncate(null_pos);
         }
