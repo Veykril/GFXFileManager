@@ -3,10 +3,10 @@ use winapi::HWND;
 
 #[repr(C)]
 pub struct DialogData {
-    hwnd: HWND,
-    mode: c_int,
-    filter: *const c_char,
-    selected_dir: *mut c_char,
-    selected_file: *mut c_char,
-    unknown: c_int,
+    pub hwnd: HWND,
+    pub mode: c_int,
+    pub filter: *const c_char,
+    pub selected_dir: *mut c_char,
+    pub selected_file: *mut c_char,
+    pub unknown: c_int,
 }

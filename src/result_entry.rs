@@ -22,7 +22,7 @@ impl From<i8> for Entry {
 #[allow(non_snake_case)]
 pub struct ResultEntry {
     pub low_date_time: c_int,
-    pub file_time: FILETIME,
+    file_time: FILETIME,
     pub high_date_time: c_int,
     pub field_10: c_int,
     pub field_14: c_int,
@@ -31,7 +31,7 @@ pub struct ResultEntry {
     size: c_int,
     typ: c_char,
     filename: [c_char; 89],
-    pub find_dataa: WIN32_FIND_DATAA,
+    find_dataa: WIN32_FIND_DATAA,
 }
 
 impl ResultEntry {
@@ -50,5 +50,13 @@ impl ResultEntry {
 
     pub fn size(&self) -> c_int {
         self.size
+    }
+
+    pub fn file_time(&self) -> FILETIME {
+        self.file_time
+    }
+
+    pub fn find_dataa(&self) -> WIN32_FIND_DATAA {
+        self.find_dataa
     }
 }

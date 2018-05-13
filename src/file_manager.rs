@@ -1,31 +1,37 @@
-use std::ffi::CStr;
-use std::ffi::CString;
+use std::ffi::{CString, CStr};
 use std::ptr::null_mut;
 use std::string::FromUtf8Error;
+use std::convert::TryFrom;
 
-use winapi::{c_char, c_int, c_long, c_ulong};
+use winapi::{c_char, c_int, c_long, c_ulong, c_void};
 use winapi::{DWORD, HMODULE, HWND, LPDWORD, LPFILETIME};
 
-use ffi::GFXDllCreateObject;
-use ffi::GFXDllReleaseObject;
+use ffi::{GFXDllCreateObject, GFXDllReleaseObject};
 
 use cjarchivefm::CJArchiveFm;
 use dialog::DialogData;
 use gfxfile::File;
 use result_entry::ResultEntry;
-use search_result::SearchResult;
-use search_result::GFXSearchResult;
+use search_result::{SearchResult, GFXSearchResult};
 
 const OBJECT_VERSION: c_int = 0x1007;
-static ERROR_CSTRING_CREATE: &'static str = "Couldn't create CString";
 
 macro_rules! cstring {
-    ($str: expr) => { CString::new($str).expect(ERROR_CSTRING_CREATE) };
+    ($str: expr) => { CString::new($str).unwrap() };
 }
 
-pub type ForEachCallback = extern "thiscall" fn(CallbackState, ResultEntry, *mut ::std::os::raw::c_void) -> ();
-pub type ErrorHandler = extern "thiscall" fn(HWND, *const c_char, *const c_char) -> bool;
+macro_rules! vtable_call {
+    ($_self:ident, $name:ident$(, $arg:expr)*) => {
+        unsafe { ((*(*$_self._file_manager).vtable).$name)($_self._file_manager, $($arg),*) }
+    };
+}
 
+pub type ForEachCallback = extern "cdecl" fn(CallbackState, ResultEntry, *mut c_void) -> ();
+pub type ErrorHandler = extern "cdecl" fn(HWND, *const c_char, *const c_char) -> c_int;
+
+extern "cdecl" fn err_dummy(_: HWND, _: *const c_char, _: *const c_char) -> c_int { 1 }
+
+#[repr(i32)]
 pub enum CallbackState {
     Init = 0,
     EnterDir = 1,
@@ -43,13 +49,14 @@ pub enum Access {
     CreateAlways = 0x4000_0000,
 }
 
-impl From<u32> for Access {
-    fn from(mode: u32) -> Self {
+impl TryFrom<u32> for Access {
+    type Error = ();
+    fn try_from(mode: u32) -> Result<Self, Self::Error> {
         match mode {
-            0 => Access::OpenExisting,
-            0x8000_0000 => Access::ShareRead,
-            0x4000_0000 => Access::CreateAlways,
-            _ => panic!("Unable to match Access mode: {}!", mode),
+            0 => Ok(Access::OpenExisting),
+            0x8000_0000 => Ok(Access::ShareRead),
+            0x4000_0000 => Ok(Access::CreateAlways),
+            _ => Err(())
         }
     }
 }
@@ -60,24 +67,19 @@ pub enum Mode {
     CW = 2
 }
 
-impl From<i32> for Mode {
-    fn from(mode: i32) -> Self {
+impl TryFrom<i32> for Mode {
+    type Error = ();
+    fn try_from(mode: i32) -> Result<Self, Self::Error> {
         match mode {
-            1 => Mode::CP,
-            2 => Mode::CW,
-            _ => panic!("Container mode was not 1 nor 2!"),
+            1 => Ok(Mode::CP),
+            2 => Ok(Mode::CW),
+            _ => Err(())
         }
     }
 }
 
 pub struct GFXFileManager {
     _file_manager: *mut IFileManager
-}
-
-macro_rules! vtable_call {
-    ($_self:ident, $name:ident$(, $arg:expr)*) => {
-        unsafe { ((*(*$_self._file_manager).vtable).$name)($_self._file_manager, $($arg),*) }
-    };
 }
 
 impl GFXFileManager {
@@ -91,11 +93,15 @@ impl GFXFileManager {
         }
     }
 
+    pub fn disable_err_msg_box(&self) {
+        self.register_error_handler(err_dummy);
+    }
+
     /// Returns the container-mode.
     pub fn mode(&self) -> Mode {
-        Mode::from(
+        Mode::try_from(
             vtable_call!(self, mode)
-        )
+        ).unwrap()
     }
 
     /// Sets some configuration
@@ -164,9 +170,14 @@ impl GFXFileManager {
     ///
     /// * filename - Filename, relative to current dir or absolute path inside archive
     /// * unknown - Not used for original CPFileManager
-    pub fn open_file(&self, filename: &str, access: Access, unknown: i32) -> File {
+    pub fn open_file(&self, filename: &str, access: Access, unknown: i32) -> ::std::io::Result<File> {
         let filename = cstring!(filename);
-        File::new(self, vtable_call!(self, open_file, filename.as_ptr(), access as i32, unknown))
+        let res = vtable_call!(self, open_file, filename.as_ptr(), access as i32, unknown);
+        if res == -1 {
+            Err(::std::io::Error::new(::std::io::ErrorKind::NotFound, ""))
+        } else {
+            Ok(File::new(self, res))
+        }
     }
 
     /// Opens a file inside the container using the CJArchiveFm-class and returns a File object
@@ -388,7 +399,7 @@ impl GFXFileManager {
         vtable_call!(self, show_dialog, data)
     }
 
-    pub fn for_each_entry_in_container(&self, callback: ForEachCallback, filter: &str, userstate: *mut ::std::os::raw::c_void) -> i32 {
+    pub fn for_each_entry_in_container(&self, callback: ForEachCallback, filter: &str, userstate: *mut c_void) -> i32 {
         let filter = cstring!(filter);
         vtable_call!(self, for_each_entry_in_container, callback, filter.as_ptr(), userstate)
     }
@@ -477,7 +488,7 @@ struct VTable {
     export_file: extern "thiscall" fn(*mut IFileManager, *const c_char, *const c_char, *const c_char, bool) -> c_int,
     file_exists: extern "thiscall" fn(*mut IFileManager, *const c_char, c_int) -> c_int,
     show_dialog: extern "thiscall" fn(*mut IFileManager, *mut DialogData) -> c_int,
-    for_each_entry_in_container: extern "thiscall" fn(*mut IFileManager, ForEachCallback, *const c_char, *mut ::std::os::raw::c_void) -> c_int,
+    for_each_entry_in_container: extern "thiscall" fn(*mut IFileManager, ForEachCallback, *const c_char, *mut c_void) -> c_int,
     update_current_dir: extern "thiscall" fn(*mut IFileManager) -> c_int,
     function_50: extern "thiscall" fn(*mut IFileManager, c_int) -> c_int,
     get_version: extern "thiscall" fn(*mut IFileManager) -> c_int,
@@ -494,15 +505,13 @@ pub(crate) struct IFileManager {
 impl IFileManager {
     fn new_ptr(mode: c_int, version: c_int) -> *mut IFileManager {
         let mut obj = null_mut();
-        unsafe { GFXDllCreateObject(mode, &mut obj, version); }
+        unsafe { GFXDllCreateObject(mode, &mut obj, version) };
         obj
     }
 }
 
 impl Drop for IFileManager {
     fn drop(&mut self) {
-        unsafe {
-            GFXDllReleaseObject(self);
-        }
+        unsafe { GFXDllReleaseObject(self) };
     }
 }
