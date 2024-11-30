@@ -554,6 +554,7 @@ impl Drop for GFXFileManager {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 struct VTable {
     mode: extern "thiscall" fn(*mut IFileManager) -> c_int,
     config_set: extern "thiscall" fn(*mut IFileManager, c_int, c_int) -> c_int,
@@ -667,6 +668,7 @@ impl IFileManager {
     fn new_ptr(mode: c_int, version: c_int) -> *mut IFileManager {
         let mut obj = null_mut();
         unsafe { GFXDllCreateObject(mode, &mut obj, version) };
+        assert!(!obj.is_null());
         obj
     }
 }

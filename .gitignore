@@ -1,6 +1,4 @@
 /target/
-*.iml
 *.dll
-.idea/
 *.pk2
 Cargo.lock
