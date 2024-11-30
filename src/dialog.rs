@@ -1,5 +1,5 @@
-use winapi::{c_char, c_int};
-use winapi::HWND;
+use winapi::ctypes::{c_char, c_int};
+use winapi::shared::windef::HWND;
 
 #[repr(C)]
 pub struct DialogData {

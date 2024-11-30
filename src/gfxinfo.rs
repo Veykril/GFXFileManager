@@ -1,7 +1,7 @@
-use winapi::{c_char, c_int, c_ulonglong};
-use winapi::SYSTEMTIME;
+use winapi::ctypes::{c_char, c_int, c_ulonglong};
+use winapi::um::minwinbase::SYSTEMTIME;
 
-use ffi::GFXFMInfo;
+use crate::ffi::GFXFMInfo;
 
 #[repr(C)]
 pub struct GFXInfo {
@@ -21,9 +21,9 @@ pub struct GFXInfo {
 impl GFXInfo {
     pub fn new(index: c_int) -> Self {
         unsafe {
-            let mut object = ::std::mem::uninitialized();
-            GFXFMInfo(&mut object, index);
-            object
+            let mut object = std::mem::MaybeUninit::uninit();
+            GFXFMInfo(object.as_mut_ptr(), index);
+            object.assume_init()
         }
     }
 }

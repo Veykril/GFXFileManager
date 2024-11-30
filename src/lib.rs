@@ -1,5 +1,4 @@
 #![cfg(all(target_os = "windows", target_arch = "x86"))]
-#![feature(abi_thiscall, read_initializer, try_from)]
 extern crate winapi;
 
 pub mod cjarchivefm;
@@ -19,6 +18,6 @@ pub use gfxinfo::GFXInfo;
 pub use result_entry::{Entry, ResultEntry};
 pub use search_result::SearchResult;
 
-pub use winapi::HWND;
+pub use winapi::shared::windef::HWND;
 
 mod ffi;

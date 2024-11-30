@@ -1,14 +1,14 @@
-use winapi::{c_char, c_uchar, c_int};
-use winapi::HANDLE;
+use winapi::ctypes::{c_char, c_int, c_uchar};
+use winapi::shared::ntdef::HANDLE;
 
-use file_manager::GFXFileManager;
+use crate::file_manager::GFXFileManager;
 
 pub struct SearchResult<'a> {
     inner: GFXSearchResult,
     file_manager: &'a GFXFileManager,
 }
 
-impl<'a> SearchResult<'a> {
+impl SearchResult<'_> {
     pub(crate) fn inner_mut(&mut self) -> &mut GFXSearchResult {
         &mut self.inner
     }
@@ -22,7 +22,7 @@ impl<'a> SearchResult<'a> {
     }
 }
 
-impl<'a> Drop for SearchResult<'a> {
+impl Drop for SearchResult<'_> {
     fn drop(&mut self) {
         self.file_manager.find_close(self.inner_mut());
     }
@@ -49,5 +49,5 @@ pub(crate) struct GFXSearchResult {
     field_3C: c_int,
     gap40: [c_char; 840],
     hFind: HANDLE,
-    field_38C: c_int
+    field_38C: c_int,
 }

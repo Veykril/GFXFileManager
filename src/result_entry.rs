@@ -1,11 +1,12 @@
 use std::ffi::CStr;
 
-use winapi::{c_char, c_int};
-use winapi::{FILETIME, WIN32_FIND_DATAA};
+use winapi::ctypes::{c_char, c_int};
+use winapi::shared::minwindef::FILETIME;
+use winapi::um::minwinbase::WIN32_FIND_DATAA;
 
 pub enum Entry {
     Directory = 1,
-    File = 2
+    File = 2,
 }
 
 impl From<i8> for Entry {
@@ -13,7 +14,7 @@ impl From<i8> for Entry {
         match i {
             1 => Entry::Directory,
             2 => Entry::File,
-            _ => panic!("Invalid Entry type")
+            _ => panic!("Invalid Entry type"),
         }
     }
 }

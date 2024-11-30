@@ -3,6 +3,7 @@ name = "gfxfilemanager"
 version = "0.2.0"
 authors = ["Lukas Wirth <lukastw97@gmail.com>"]
 build = "build.rs"
+edition = "2021"
 
 [dependencies]
-winapi = "0.2.8"
+winapi = {version =  "0.3.9", features = ["ntdef","windef","minwindef","minwinbase"]}

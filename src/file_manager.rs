@@ -1,23 +1,26 @@
-use std::ffi::{CString, CStr};
+use std::convert::TryFrom;
+use std::ffi::{CStr, CString};
 use std::ptr::null_mut;
 use std::string::FromUtf8Error;
-use std::convert::TryFrom;
 
-use winapi::{c_char, c_int, c_long, c_ulong, c_void};
-use winapi::{DWORD, HMODULE, HWND, LPDWORD, LPFILETIME};
+use winapi::ctypes::{c_char, c_int, c_long, c_ulong, c_void};
+use winapi::shared::minwindef::{DWORD, HMODULE, LPDWORD, LPFILETIME};
+use winapi::shared::windef::HWND;
 
-use ffi::{GFXDllCreateObject, GFXDllReleaseObject};
+use crate::ffi::{GFXDllCreateObject, GFXDllReleaseObject};
 
-use cjarchivefm::CJArchiveFm;
-use dialog::DialogData;
-use gfxfile::File;
-use result_entry::ResultEntry;
-use search_result::{SearchResult, GFXSearchResult};
+use crate::cjarchivefm::CJArchiveFm;
+use crate::dialog::DialogData;
+use crate::gfxfile::File;
+use crate::result_entry::ResultEntry;
+use crate::search_result::{GFXSearchResult, SearchResult};
 
 const OBJECT_VERSION: c_int = 0x1007;
 
 macro_rules! cstring {
-    ($str: expr) => { CString::new($str).unwrap() };
+    ($str: expr) => {
+        CString::new($str).unwrap()
+    };
 }
 
 macro_rules! vtable_call {
@@ -29,14 +32,16 @@ macro_rules! vtable_call {
 pub type ForEachCallback = extern "cdecl" fn(CallbackState, ResultEntry, *mut c_void) -> ();
 pub type ErrorHandler = extern "cdecl" fn(HWND, *const c_char, *const c_char) -> c_int;
 
-extern "cdecl" fn err_dummy(_: HWND, _: *const c_char, _: *const c_char) -> c_int { 1 }
+extern "cdecl" fn err_dummy(_: HWND, _: *const c_char, _: *const c_char) -> c_int {
+    1
+}
 
 #[repr(i32)]
 pub enum CallbackState {
     Init = 0,
     EnterDir = 1,
     LeaveDir = 2,
-    File = 3
+    File = 3,
 }
 
 #[repr(C)]
@@ -56,7 +61,7 @@ impl TryFrom<u32> for Access {
             0 => Ok(Access::OpenExisting),
             0x8000_0000 => Ok(Access::ShareRead),
             0x4000_0000 => Ok(Access::CreateAlways),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
@@ -64,7 +69,7 @@ impl TryFrom<u32> for Access {
 #[derive(Debug)]
 pub enum Mode {
     CP = 1,
-    CW = 2
+    CW = 2,
 }
 
 impl TryFrom<i32> for Mode {
@@ -73,13 +78,13 @@ impl TryFrom<i32> for Mode {
         match mode {
             1 => Ok(Mode::CP),
             2 => Ok(Mode::CW),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
 
 pub struct GFXFileManager {
-    _file_manager: *mut IFileManager
+    _file_manager: *mut IFileManager,
 }
 
 impl GFXFileManager {
@@ -88,9 +93,7 @@ impl GFXFileManager {
     }
 
     pub fn new_with_version(mode: Mode, version: c_int) -> Self {
-        Self {
-            _file_manager: IFileManager::new_ptr(mode as i32, version)
-        }
+        Self { _file_manager: IFileManager::new_ptr(mode as i32, version) }
     }
 
     pub fn disable_err_msg_box(&self) {
@@ -99,9 +102,7 @@ impl GFXFileManager {
 
     /// Returns the container-mode.
     pub fn mode(&self) -> Mode {
-        Mode::try_from(
-            vtable_call!(self, mode)
-        ).unwrap()
+        Mode::try_from(vtable_call!(self, mode)).unwrap()
     }
 
     /// Sets some configuration
@@ -170,7 +171,12 @@ impl GFXFileManager {
     ///
     /// * filename - Filename, relative to current dir or absolute path inside archive
     /// * unknown - Not used for original CPFileManager
-    pub fn open_file(&self, filename: &str, access: Access, unknown: i32) -> ::std::io::Result<File> {
+    pub fn open_file(
+        &self,
+        filename: &str,
+        access: Access,
+        unknown: i32,
+    ) -> ::std::io::Result<File> {
         let filename = cstring!(filename);
         let res = vtable_call!(self, open_file, filename.as_ptr(), access as i32, unknown);
         if res == -1 {
@@ -187,9 +193,18 @@ impl GFXFileManager {
     /// * fm - A mutable reference to a CJArchiveFm
     /// * filename - Filename, relative to current dir or absolute path inside archive
     /// * unknown - not used for original CPFileManager
-    pub fn open_file_cj(&self, fm: &mut CJArchiveFm, filename: &str, access: Access, unknown: i32) -> File {
+    pub fn open_file_cj(
+        &self,
+        fm: &mut CJArchiveFm,
+        filename: &str,
+        access: Access,
+        unknown: i32,
+    ) -> File {
         let filename = cstring!(filename);
-        File::new(self, vtable_call!(self, open_file_cj, fm, filename.as_ptr(), access as i32, unknown))
+        File::new(
+            self,
+            vtable_call!(self, open_file_cj, fm, filename.as_ptr(), access as i32, unknown),
+        )
     }
 
     pub fn function_12(&self) -> i32 {
@@ -210,7 +225,6 @@ impl GFXFileManager {
         let filename = cstring!(filename);
         File::new(self, vtable_call!(self, create_file, filename.as_ptr(), unknown))
     }
-
 
     /// Creates a file inside the container using the CJArchiveFm-class and returns a File object
     ///
@@ -236,13 +250,39 @@ impl GFXFileManager {
     }
 
     /// Reads a number of bytes from a file
-    pub(crate) fn read(&self, file: &File, lp_buffer: &mut [u8], bytes_to_read: i32, bytes_read: *mut u32) -> i32 {
-        vtable_call!(self, read, file.handle(), lp_buffer.as_mut_ptr() as *mut i8, bytes_to_read, bytes_read)
+    pub(crate) fn read(
+        &self,
+        file: &File,
+        lp_buffer: &mut [u8],
+        bytes_to_read: i32,
+        bytes_read: *mut u32,
+    ) -> i32 {
+        vtable_call!(
+            self,
+            read,
+            file.handle(),
+            lp_buffer.as_mut_ptr() as *mut i8,
+            bytes_to_read,
+            bytes_read
+        )
     }
 
     /// Writes a number of bytes to file
-    pub(crate) fn write(&self, file: &File, lp_buffer: &[u8], bytes_to_write: i32, bytes_written: *mut u32) -> i32 {
-        vtable_call!(self, write, file.handle(), lp_buffer.as_ptr() as *const i8, bytes_to_write, bytes_written)
+    pub(crate) fn write(
+        &self,
+        file: &File,
+        lp_buffer: &[u8],
+        bytes_to_write: i32,
+        bytes_written: *mut u32,
+    ) -> i32 {
+        vtable_call!(
+            self,
+            write,
+            file.handle(),
+            lp_buffer.as_ptr() as *const i8,
+            bytes_to_write,
+            bytes_written
+        )
     }
 
     pub fn cmd_line_path<'a>(&self) -> &'a CStr {
@@ -288,8 +328,7 @@ impl GFXFileManager {
 
     /// Returns the current directory's name or an utf8 error
     pub fn get_directory_name(&self) -> Result<String, FromUtf8Error> {
-        let mut buf = Vec::with_capacity(255);
-        unsafe { buf.set_len(255) };
+        let mut buf = vec![0; 255];
         let ptr = buf.as_mut_ptr();
         let len = vtable_call!(self, get_dir_name, 200, ptr as *mut i8);
         buf.truncate(len as usize);
@@ -302,8 +341,7 @@ impl GFXFileManager {
     }
 
     pub fn get_virtual_path(&self) -> Result<String, FromUtf8Error> {
-        let mut buf = Vec::with_capacity(255);
-        unsafe { buf.set_len(255) };
+        let mut buf = vec![0; 255];
         vtable_call!(self, get_virtual_path, buf.as_mut_ptr() as *mut i8);
         if let Some(null_pos) = buf.iter().position(|&x| x == 0) {
             buf.truncate(null_pos);
@@ -311,7 +349,12 @@ impl GFXFileManager {
         String::from_utf8(buf)
     }
 
-    pub fn find_first_file(&self, search: &mut SearchResult, pattern: &str, entry: &mut ResultEntry) {
+    pub fn find_first_file(
+        &self,
+        search: &mut SearchResult,
+        pattern: &str,
+        entry: &mut ResultEntry,
+    ) {
         let pattern = cstring!(pattern);
         vtable_call!(self, find_first_file, search.inner_mut(), pattern.as_ptr(), entry);
     }
@@ -325,9 +368,14 @@ impl GFXFileManager {
     }
 
     pub(crate) fn file_name_from_handle(&self, file: &File) -> Result<String, FromUtf8Error> {
-        let mut buf = Vec::with_capacity(512);
-        unsafe { buf.set_len(512) };
-        vtable_call!(self, file_name_from_handle, file.handle(), buf.as_mut_ptr() as *mut i8, buf.len());
+        let mut buf = vec![0; 512];
+        vtable_call!(
+            self,
+            file_name_from_handle,
+            file.handle(),
+            buf.as_mut_ptr() as *mut i8,
+            buf.len()
+        );
         if let Some(null_pos) = buf.iter().position(|&x| x == 0) {
             buf.truncate(null_pos);
         }
@@ -338,15 +386,25 @@ impl GFXFileManager {
         vtable_call!(self, get_file_size, file.handle(), null_mut())
     }
 
-    pub(crate) fn get_file_time(&self, file: &File, creation_time: LPFILETIME, last_write_time: LPFILETIME) -> bool {
+    pub(crate) fn get_file_time(
+        &self,
+        file: &File,
+        creation_time: LPFILETIME,
+        last_write_time: LPFILETIME,
+    ) -> bool {
         vtable_call!(self, get_file_time, file.handle(), creation_time, last_write_time)
     }
 
-    pub(crate) fn set_file_time(&self, file: &File, creation_time: LPFILETIME, last_write_time: LPFILETIME) -> bool {
+    pub(crate) fn set_file_time(
+        &self,
+        file: &File,
+        creation_time: LPFILETIME,
+        last_write_time: LPFILETIME,
+    ) -> bool {
         vtable_call!(self, set_file_time, file.handle(), creation_time, last_write_time)
     }
 
-    pub(crate) fn seek(&self, file: &File, distance_to_move: c_long, move_method: DWORD) -> i32{
+    pub(crate) fn seek(&self, file: &File, distance_to_move: c_long, move_method: DWORD) -> i32 {
         vtable_call!(self, seek, file.handle(), distance_to_move, move_method)
     }
 
@@ -362,32 +420,84 @@ impl GFXFileManager {
         vtable_call!(self, register_error_handler, callback)
     }
 
-    pub fn import_directory(&self, srcdir: &str, dstdir: &str, dir_name: &str, create_target_dir: bool) -> i32 {
+    pub fn import_directory(
+        &self,
+        srcdir: &str,
+        dstdir: &str,
+        dir_name: &str,
+        create_target_dir: bool,
+    ) -> i32 {
         let srcdir = cstring!(srcdir);
         let dstdir = cstring!(dstdir);
         let dir_name = cstring!(dir_name);
-        vtable_call!(self, import_dir, srcdir.as_ptr(), dstdir.as_ptr(), dir_name.as_ptr(), create_target_dir)
+        vtable_call!(
+            self,
+            import_dir,
+            srcdir.as_ptr(),
+            dstdir.as_ptr(),
+            dir_name.as_ptr(),
+            create_target_dir
+        )
     }
 
-    pub fn import_file(&self, srcdir: &str, dstdir: &str, filename: &str, create_target_dir: bool) -> i32 {
+    pub fn import_file(
+        &self,
+        srcdir: &str,
+        dstdir: &str,
+        filename: &str,
+        create_target_dir: bool,
+    ) -> i32 {
         let srcdir = cstring!(srcdir);
         let dstdir = cstring!(dstdir);
         let filename = cstring!(filename);
-        vtable_call!(self, import_file, srcdir.as_ptr(), dstdir.as_ptr(), filename.as_ptr(), create_target_dir)
+        vtable_call!(
+            self,
+            import_file,
+            srcdir.as_ptr(),
+            dstdir.as_ptr(),
+            filename.as_ptr(),
+            create_target_dir
+        )
     }
 
-    pub fn export_directory(&self, srcdir: &str, dstdir: &str, dir_name: &str, create_target_dir: bool) -> i32 {
+    pub fn export_directory(
+        &self,
+        srcdir: &str,
+        dstdir: &str,
+        dir_name: &str,
+        create_target_dir: bool,
+    ) -> i32 {
         let srcdir = cstring!(srcdir);
         let dstdir = cstring!(dstdir);
         let dir_name = cstring!(dir_name);
-        vtable_call!(self, export_dir, srcdir.as_ptr(), dstdir.as_ptr(), dir_name.as_ptr(), create_target_dir)
+        vtable_call!(
+            self,
+            export_dir,
+            srcdir.as_ptr(),
+            dstdir.as_ptr(),
+            dir_name.as_ptr(),
+            create_target_dir
+        )
     }
 
-    pub fn export_file(&self, srcdir: &str, dstdir: &str, filename: &str, create_target_dir: bool) -> i32 {
+    pub fn export_file(
+        &self,
+        srcdir: &str,
+        dstdir: &str,
+        filename: &str,
+        create_target_dir: bool,
+    ) -> i32 {
         let srcdir = cstring!(srcdir);
         let dstdir = cstring!(dstdir);
         let filename = cstring!(filename);
-        vtable_call!(self, export_file, srcdir.as_ptr(), dstdir.as_ptr(), filename.as_ptr(), create_target_dir)
+        vtable_call!(
+            self,
+            export_file,
+            srcdir.as_ptr(),
+            dstdir.as_ptr(),
+            filename.as_ptr(),
+            create_target_dir
+        )
     }
 
     pub fn file_exists(&self, name: &str, flags: i32) -> i32 {
@@ -399,7 +509,12 @@ impl GFXFileManager {
         vtable_call!(self, show_dialog, data)
     }
 
-    pub fn for_each_entry_in_container(&self, callback: ForEachCallback, filter: &str, userstate: *mut c_void) -> i32 {
+    pub fn for_each_entry_in_container(
+        &self,
+        callback: ForEachCallback,
+        filter: &str,
+        userstate: *mut c_void,
+    ) -> i32 {
         let filter = cstring!(filter);
         vtable_call!(self, for_each_entry_in_container, callback, filter.as_ptr(), userstate)
     }
@@ -443,23 +558,33 @@ struct VTable {
     mode: extern "thiscall" fn(*mut IFileManager) -> c_int,
     config_set: extern "thiscall" fn(*mut IFileManager, c_int, c_int) -> c_int,
     config_get: extern "thiscall" fn(*mut IFileManager, c_int, c_int) -> c_int,
-    create_container: extern "thiscall" fn(*mut IFileManager, *const c_char, *const c_char) -> c_int,
-    open_container: extern "thiscall" fn(*mut IFileManager, *const c_char, *const c_char, c_int) -> c_int,
+    create_container:
+        extern "thiscall" fn(*mut IFileManager, *const c_char, *const c_char) -> c_int,
+    open_container:
+        extern "thiscall" fn(*mut IFileManager, *const c_char, *const c_char, c_int) -> c_int,
     close_container: extern "thiscall" fn(*mut IFileManager) -> c_int,
     is_open: extern "thiscall" fn(*mut IFileManager) -> c_int,
     close_all_files: extern "thiscall" fn(*mut IFileManager) -> c_int,
     main_module_handle: extern "thiscall" fn(*mut IFileManager) -> HMODULE,
     function_9: extern "thiscall" fn(*mut IFileManager, c_int) -> c_int,
-    open_file_cj: extern "thiscall" fn(*mut IFileManager, *mut CJArchiveFm, *const c_char, c_int, c_int) -> c_int,
+    open_file_cj: extern "thiscall" fn(
+        *mut IFileManager,
+        *mut CJArchiveFm,
+        *const c_char,
+        c_int,
+        c_int,
+    ) -> c_int,
     open_file: extern "thiscall" fn(*mut IFileManager, *const c_char, c_int, c_int) -> c_int,
     function_12: extern "thiscall" fn(*mut IFileManager) -> c_int,
     function_13: extern "thiscall" fn(*mut IFileManager) -> c_int,
-    create_file_cj: extern "thiscall" fn(*mut IFileManager, *mut CJArchiveFm, *const c_char, c_int) -> c_int,
+    create_file_cj:
+        extern "thiscall" fn(*mut IFileManager, *mut CJArchiveFm, *const c_char, c_int) -> c_int,
     create_file: extern "thiscall" fn(*mut IFileManager, *const c_char, c_int) -> c_int,
-    delete_file: extern "thiscall" fn(*mut IFileManager, *const c_char,) -> c_int,
+    delete_file: extern "thiscall" fn(*mut IFileManager, *const c_char) -> c_int,
     close_file: extern "thiscall" fn(*mut IFileManager, c_int) -> c_int,
     read: extern "thiscall" fn(*mut IFileManager, c_int, *mut c_char, c_int, *mut c_ulong) -> c_int,
-    write: extern "thiscall" fn(*mut IFileManager, c_int, *const c_char, c_int, *mut c_ulong) -> c_int,
+    write:
+        extern "thiscall" fn(*mut IFileManager, c_int, *const c_char, c_int, *mut c_ulong) -> c_int,
     cmd_line_path: extern "thiscall" fn(*mut IFileManager) -> *mut c_char,
     cmd_line_exe: extern "thiscall" fn(*mut IFileManager) -> *mut c_char,
     get_unknown: extern "thiscall" fn(*mut IFileManager, *mut UnknownPair) -> *mut UnknownPair,
@@ -471,10 +596,17 @@ struct VTable {
     get_dir_name: extern "thiscall" fn(*mut IFileManager, usize, *mut c_char) -> c_int,
     set_virtual_path: extern "thiscall" fn(*mut IFileManager, *const c_char) -> c_int,
     get_virtual_path: extern "thiscall" fn(*mut IFileManager, *mut c_char) -> c_int,
-    find_first_file: extern "thiscall" fn(*mut IFileManager, *mut GFXSearchResult, *const c_char, *mut ResultEntry) -> *mut GFXSearchResult,
-    find_next_file: extern "thiscall" fn(*mut IFileManager, *mut GFXSearchResult, *mut ResultEntry) -> c_int,
+    find_first_file: extern "thiscall" fn(
+        *mut IFileManager,
+        *mut GFXSearchResult,
+        *const c_char,
+        *mut ResultEntry,
+    ) -> *mut GFXSearchResult,
+    find_next_file:
+        extern "thiscall" fn(*mut IFileManager, *mut GFXSearchResult, *mut ResultEntry) -> c_int,
     close_search_result: extern "thiscall" fn(*mut IFileManager, *mut GFXSearchResult) -> c_int,
-    file_name_from_handle: extern "thiscall" fn(*mut IFileManager, c_int, *mut c_char, usize) -> c_int,
+    file_name_from_handle:
+        extern "thiscall" fn(*mut IFileManager, c_int, *mut c_char, usize) -> c_int,
     get_file_size: extern "thiscall" fn(*mut IFileManager, c_int, LPDWORD) -> c_int,
     get_file_time: extern "thiscall" fn(*mut IFileManager, c_int, LPFILETIME, LPFILETIME) -> bool,
     set_file_time: extern "thiscall" fn(*mut IFileManager, c_int, LPFILETIME, LPFILETIME) -> bool,
@@ -482,19 +614,48 @@ struct VTable {
     get_hwnd: extern "thiscall" fn(*mut IFileManager) -> HWND,
     set_hwnd: extern "thiscall" fn(*mut IFileManager, HWND) -> c_int,
     register_error_handler: extern "thiscall" fn(*mut IFileManager, ErrorHandler) -> c_int,
-    import_dir: extern "thiscall" fn(*mut IFileManager, *const c_char, *const c_char, *const c_char, bool) -> c_int,
-    import_file: extern "thiscall" fn(*mut IFileManager, *const c_char, *const c_char, *const c_char, bool) -> c_int,
-    export_dir: extern "thiscall" fn(*mut IFileManager, *const c_char, *const c_char, *const c_char, bool) -> c_int,
-    export_file: extern "thiscall" fn(*mut IFileManager, *const c_char, *const c_char, *const c_char, bool) -> c_int,
+    import_dir: extern "thiscall" fn(
+        *mut IFileManager,
+        *const c_char,
+        *const c_char,
+        *const c_char,
+        bool,
+    ) -> c_int,
+    import_file: extern "thiscall" fn(
+        *mut IFileManager,
+        *const c_char,
+        *const c_char,
+        *const c_char,
+        bool,
+    ) -> c_int,
+    export_dir: extern "thiscall" fn(
+        *mut IFileManager,
+        *const c_char,
+        *const c_char,
+        *const c_char,
+        bool,
+    ) -> c_int,
+    export_file: extern "thiscall" fn(
+        *mut IFileManager,
+        *const c_char,
+        *const c_char,
+        *const c_char,
+        bool,
+    ) -> c_int,
     file_exists: extern "thiscall" fn(*mut IFileManager, *const c_char, c_int) -> c_int,
     show_dialog: extern "thiscall" fn(*mut IFileManager, *mut DialogData) -> c_int,
-    for_each_entry_in_container: extern "thiscall" fn(*mut IFileManager, ForEachCallback, *const c_char, *mut c_void) -> c_int,
+    for_each_entry_in_container: extern "thiscall" fn(
+        *mut IFileManager,
+        ForEachCallback,
+        *const c_char,
+        *mut c_void,
+    ) -> c_int,
     update_current_dir: extern "thiscall" fn(*mut IFileManager) -> c_int,
     function_50: extern "thiscall" fn(*mut IFileManager, c_int) -> c_int,
     get_version: extern "thiscall" fn(*mut IFileManager) -> c_int,
     check_version: extern "thiscall" fn(*mut IFileManager, c_int) -> c_int,
     lock: extern "thiscall" fn(*mut IFileManager, c_int) -> c_int,
-    unlock: extern "thiscall" fn(*mut IFileManager) -> c_int
+    unlock: extern "thiscall" fn(*mut IFileManager) -> c_int,
 }
 
 #[repr(C)]
